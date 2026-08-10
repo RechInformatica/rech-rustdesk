@@ -1,0 +1,83 @@
+name: Sync Upstream
+
+# Mantém a branch `upstream-tracking` alinhada com rustdesk/rustdesk e abre um
+# Pull Request para `master` sempre que houver novidade a trazer. Este workflow
+# NUNCA mescla em `master` sozinho - a aprovação do PR é sempre manual.
+#
+# Contexto/decisões: docs/AUTOMACAO-SYNC-RELEASE.md, seções 3.1 e 11 (Fase 2).
+#
+# Pré-requisito único: a branch `upstream-tracking` já precisa existir no
+# remote `origin` antes da primeira execução (`git push origin upstream-tracking`).
+
+on:
+  schedule:
+    - cron: "0 3 * * *" # todo dia às 03:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  UPSTREAM_URL: https://github.com/rustdesk/rustdesk.git
+  TRACKING_BRANCH: upstream-tracking
+  TARGET_BRANCH: master
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout upstream-tracking
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ env.TRACKING_BRANCH }}
+          fetch-depth: 0
+
+      - name: Configurar identidade do bot
+        run: |
+          git config user.name "rech-sync-bot"
+          git config user.email "actions@users.noreply.github.com"
+
+      - name: Buscar upstream
+        run: |
+          git remote add upstream "$UPSTREAM_URL" 2>/dev/null || git remote set-url upstream "$UPSTREAM_URL"
+          git fetch upstream --tags --prune
+
+      - name: Mesclar upstream/master em upstream-tracking
+        id: merge
+        run: |
+          set -e
+          before="$(git rev-parse HEAD)"
+          if ! git merge --no-edit upstream/master; then
+            git merge --abort
+            echo "::error::Merge automático de upstream/master falhou por conflito. Resolva manualmente: faça checkout de $TRACKING_BRANCH localmente, rode 'git merge upstream/master', resolva os conflitos e dê push."
+            exit 1
+          fi
+          after="$(git rev-parse HEAD)"
+          if [ "$before" = "$after" ]; then
+            echo "Nada novo para trazer do upstream."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Push da branch upstream-tracking
+        if: steps.merge.outputs.changed == 'true'
+        run: git push origin "$TRACKING_BRANCH"
+
+      - name: Abrir Pull Request para master (se ainda não existir um aberto)
+        if: steps.merge.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          existing="$(gh pr list --head "$TRACKING_BRANCH" --base "$TARGET_BRANCH" --state open --json number --jq '.[0].number')"
+          if [ -n "$existing" ]; then
+            echo "PR #$existing já está aberto - o push acima já atualizou o conteúdo dele."
+            exit 0
+          fi
+          gh pr create \
+            --base "$TARGET_BRANCH" \
+            --head "$TRACKING_BRANCH" \
+            --title "sync: atualizações do upstream rustdesk/rustdesk" \
+            --body "PR automático do workflow \`sync-upstream.yml\`. Traz o que há de novo em [rustdesk/rustdesk](https://github.com/rustdesk/rustdesk) para o fork, via a branch \`$TRACKING_BRANCH\`. Revise os commits antes de aprovar e mesclar - ver \`docs/AUTOMACAO-SYNC-RELEASE.md\` (seção 3.1)."
