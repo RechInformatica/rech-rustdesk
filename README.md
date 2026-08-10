@@ -23,9 +23,18 @@ Yet another remote desktop solution, written in Rust. Works out of the box with 
 
 RustDesk welcomes contribution from everyone. See [CONTRIBUTING.md](docs/CONTRIBUTING.md) for help getting started.
 
+> [!Note]
+> **Este é o fork Rech Rustdesk** (mantido pela Rech Informática, baseado no
+> [RustDesk](https://github.com/rustdesk/rustdesk) original sob AGPL-3.0).
+> A versão oficialmente recomendada para download está listada em
+> [`RELEASED_VERSIONS.md`](RELEASED_VERSIONS.md) — nem toda tag/Release
+> publicada aqui é necessariamente a recomendada no momento.
+
 [**FAQ**](https://github.com/rustdesk/rustdesk/wiki/FAQ)
 
-[**BINARY DOWNLOAD**](https://github.com/rustdesk/rustdesk/releases)
+[**BINARY DOWNLOAD (Rech Rustdesk)**](https://github.com/RechInformatica/rech-rustdesk/releases) — veja [`RELEASED_VERSIONS.md`](RELEASED_VERSIONS.md) para saber qual é a versão recomendada
+
+[**BINARY DOWNLOAD (RustDesk upstream oficial)**](https://github.com/rustdesk/rustdesk/releases)
 
 [**NIGHTLY BUILD**](https://github.com/rustdesk/rustdesk/releases/tag/nightly)
 

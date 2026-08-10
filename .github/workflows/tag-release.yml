@@ -1,0 +1,68 @@
+name: Tag Release
+
+# Cria automaticamente uma tag `X.Y.Z-rech.N` (X.Y.Z = versão do upstream em
+# Cargo.toml) sempre que o PR de sync (branch `upstream-tracking`) for
+# mesclado em `master`. N incrementa se já existir tag para a mesma base
+# X.Y.Z (ex.: rebuild por causa de um patch/branding próprio).
+#
+# A tag criada aqui dispara automaticamente o build+Release existente
+# (flutter-tag.yml). Isso NÃO decide quais versões ficam "disponíveis para
+# download" - esse controle é manual, via RELEASED_VERSIONS.md.
+#
+# Contexto/decisões: docs/AUTOMACAO-SYNC-RELEASE.md, seções 3.2, 3.3 e 11
+# (Fase 3).
+#
+# Também pode ser disparado manualmente (workflow_dispatch) para tagear o
+# estado atual de `master` fora do fluxo de sync (ex.: primeira tag, ou uma
+# tag extra para uma correção de branding).
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.merged == true && github.event.pull_request.head.ref == 'upstream-tracking')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout master
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: master
+          fetch-depth: 0
+
+      - name: Determinar próxima tag rech
+        id: next_tag
+        run: |
+          set -e
+          base_version="$(grep -m1 '^version' Cargo.toml | sed -E 's/version = "([^"]*)".*/\1/')"
+          echo "Versão base (upstream) detectada no Cargo.toml: $base_version"
+
+          n=1
+          while git rev-parse -q --verify "refs/tags/${base_version}-rech.${n}" >/dev/null; do
+            n=$((n + 1))
+          done
+
+          tag="${base_version}-rech.${n}"
+          echo "Próxima tag: $tag"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Criar e enviar tag
+        run: |
+          git config user.name "rech-release-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git tag -a "${{ steps.next_tag.outputs.tag }}" -m "Rech Rustdesk ${{ steps.next_tag.outputs.tag }}"
+          git push origin "${{ steps.next_tag.outputs.tag }}"
+
+      - name: Resumo
+        run: |
+          echo "### Tag criada: \`${{ steps.next_tag.outputs.tag }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "O build (flutter-tag.yml) deve iniciar automaticamente. Essa versão ainda **não** fica disponível para download até ser adicionada ao \`RELEASED_VERSIONS.md\` (ver docs/AUTOMACAO-SYNC-RELEASE.md, seção 10)." >> "$GITHUB_STEP_SUMMARY"
