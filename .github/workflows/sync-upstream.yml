@@ -91,8 +91,13 @@ jobs:
             echo "PR #$existing já está aberto - o push acima já atualizou o conteúdo dele."
             exit 0
           fi
-          gh pr create \
-            --base "$TARGET_BRANCH" \
-            --head "$TRACKING_BRANCH" \
-            --title "sync: atualizações do upstream rustdesk/rustdesk" \
-            --body "PR automático do workflow \`sync-upstream.yml\`. Traz o que há de novo em [rustdesk/rustdesk](https://github.com/rustdesk/rustdesk) para o fork, via a branch \`$TRACKING_BRANCH\`. Revise os commits antes de aprovar e mesclar - ver \`docs/AUTOMACAO-SYNC-RELEASE.md\` (seção 3.1)."
+          # `gh pr create` usa a mutation GraphQL createPullRequest, que ainda
+          # não tem suporte completo a fine-grained PAT mesmo com a permissão
+          # "Pull requests: write" concedida (limitação conhecida do GitHub -
+          # erro: "Resource not accessible by personal access token"). A API
+          # REST não tem essa restrição, então criamos o PR por ela.
+          gh api "repos/${{ github.repository }}/pulls" \
+            -f title="sync: atualizações do upstream rustdesk/rustdesk" \
+            -f head="$TRACKING_BRANCH" \
+            -f base="$TARGET_BRANCH" \
+            -f body="PR automático do workflow \`sync-upstream.yml\`. Traz o que há de novo em [rustdesk/rustdesk](https://github.com/rustdesk/rustdesk) para o fork, via a branch \`$TRACKING_BRANCH\`. Revise os commits antes de aprovar e mesclar - ver \`docs/AUTOMACAO-SYNC-RELEASE.md\` (seção 3.1)."
