@@ -15,6 +15,12 @@ name: Tag Release
 # Também pode ser disparado manualmente (workflow_dispatch) para tagear o
 # estado atual de `master` fora do fluxo de sync (ex.: primeira tag, ou uma
 # tag extra para uma correção de branding).
+#
+# Pré-requisito: secret `SYNC_PAT` (mesmo PAT do sync-upstream.yml - ver
+# pré-requisitos lá). Necessário aqui não por causa de arquivos de workflow,
+# mas porque pushes feitos com o GITHUB_TOKEN padrão NÃO disparam outros
+# workflows (proteção do GitHub contra loop infinito) - sem o PAT, a tag é
+# criada mas o flutter-tag.yml (build+Release) nunca dispara.
 
 on:
   pull_request:
@@ -37,6 +43,8 @@ jobs:
         with:
           ref: master
           fetch-depth: 0
+          # PAT, não o GITHUB_TOKEN padrão - ver nota de pré-requisitos acima.
+          token: ${{ secrets.SYNC_PAT }}
 
       - name: Determinar próxima tag rech
         id: next_tag
