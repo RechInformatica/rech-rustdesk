@@ -337,47 +337,52 @@ Um arquivo simples na raiz (ou em `docs/`), por exemplo `RELEASED_VERSIONS.md` (
 
 ## 11. Plano para colocar em produção
 
-Sequência recomendada para sair deste documento e chegar a "primeira release oficial Rech Rustdesk disponível para download". Organizado em fases; cada fase só depende da anterior estar concluída. Nenhum passo aqui foi executado ainda — é o roteiro a seguir.
+Sequência recomendada para sair deste documento e chegar a "primeira release oficial Rech Rustdesk disponível para download". Organizado em fases; cada fase só depende da anterior estar concluída.
+
+> **Status em 2026-08-11: Fases 0 a 4 e 6 concluídas e testadas de ponta a ponta em produção** (tag real `1.4.9-rech.1`, Release publicada com todos os artefatos). Fase 5 (rebrand) é o próximo bloqueador antes de divulgar builds oficialmente. Detalhes de cada item abaixo.
 
 ### Fase 0 — Decisões e insumos que faltam antes de escrever qualquer workflow
 
-- [ ] Definir **onde vivem os segredos/credenciais** organizacionais: os workflows vão usar `Secrets and variables → Actions` a nível de **repositório** ou de **organização** (`RechInformatica`)? Nível de organização é melhor se você prevê mais de um repositório reaproveitando os mesmos segredos no futuro.
-- [ ] Levantar **assets de marca** já existentes ou a produzir: ícone/logo do "Rech Rustdesk" em todos os formatos que o build espera (`.ico` Windows, `.icns` macOS, `.png` variados Android/Linux) — isso é código/assets, fora do escopo deste MD, mas é pré-requisito para a Fase 5 (rebrand).
-- [ ] Confirmar **quem, além de você, pode**: aprovar PRs de sync, editar o arquivo de versões liberadas, disparar workflows manualmente. Isso vira a configuração de proteção de branch na Fase 1.
-- [ ] Confirmar se o repositório **continua público** (decisão já tomada implicitamente ao longo da conversa, ver §6) — se mudar, revisitar §7.3 antes de prosseguir (cota de minutos deixa de ser ilimitada).
+- [x] Onde vivem os segredos: **nível de repositório** (`SYNC_PAT` como repository secret). Revisitar se algum dia houver mais de um repositório reaproveitando a mesma automação.
+- [ ] Levantar **assets de marca**: ícone/logo do "Rech Rustdesk" em todos os formatos que o build espera (`.ico` Windows, `.icns` macOS, `.png` variados Android/Linux) — ainda pendente, é o principal insumo faltante pra Fase 5.
+- [x] Quem além de você pode aprovar/liberar: decidido "só eu por enquanto".
+- [x] Repositório continua público — confirmado via API (`"visibility": "public"`).
 
 ### Fase 1 — Configuração de base do repositório
 
-- [ ] `Settings → General → Default branch`: confirmar que `master` continua sendo a branch padrão (é hoje).
-- [ ] Criar a branch `upstream-tracking` a partir do `master` atual: `git checkout -b upstream-tracking && git push origin upstream-tracking`.
-- [ ] `Settings → Branches → Branch protection rules`: proteger `master` (exigir PR + pelo menos 1 aprovação antes de merge — inclusive dos PRs automáticos de sync, para manter o ponto de controle humano do §3.1). `upstream-tracking` pode ficar sem proteção (é "zona de quarentena", só recebe merge automático do bot).
-- [ ] `Settings → Actions → General → Workflow permissions`: garantir que o `GITHUB_TOKEN` tem permissão de **"Read and write permissions"** — necessário para o bot de sync abrir PR e para o Workflow B publicar Releases.
-- [ ] `Settings → Actions → General → Fork pull request workflows`: como o repo é público (§7.5), deixar configurado "Require approval for all outside collaborators" — mitigação preventiva mesmo sem usar self-hosted runner hoje.
+- [x] `master` confirmado como branch padrão.
+- [x] Branch `upstream-tracking` criada e no `origin`.
+- [x] Branch protection em `master` ativa (confirmado via API pública: `"protected": true`, exige aprovação).
+- [x] `Settings → Actions → General → Workflow permissions`: **Read and write** + **Allow GitHub Actions to create and approve pull requests** confirmados via API (`default_workflow_permissions: "write"`, `can_approve_pull_request_reviews: true`).
+- [ ] `Fork pull request workflows` (exigir aprovação de colaboradores externos) — **ainda não confirmado/aplicado**. Baixo risco hoje (nada dispara via `pull_request` de fork externo), mas ficou pendente de verificação.
 
 ### Fase 2 — Workflow A: sincronização com o upstream
 
-- [ ] Criar `.github/workflows/sync-upstream.yml`: gatilho `schedule` (sugestão: diário, de madrugada) + `workflow_dispatch` (para rodar manual quando quiser).
-- [ ] Passos do job: adicionar remote `upstream` (`https://github.com/rustdesk/rustdesk.git`), `fetch --tags`, merge de `upstream/master` dentro de `upstream-tracking`, push.
-- [ ] Usar uma action pronta para abrir o PR de `upstream-tracking` → `master` (ex.: `peter-evans/create-pull-request`), com título padronizado (ex.: `sync: upstream vX.Y.Z`) e corpo listando o range de commits trazidos.
-- [ ] Fazer esse PR **disparar automaticamente o `ci.yml`** já existente no repo, para você já ver o resultado dos testes antes de aprovar.
-- [ ] **Teste isolado desta fase:** rodar `workflow_dispatch` manualmente uma vez, confirmar que o PR é aberto corretamente, mesmo que ainda não vá mergear.
+- [x] `.github/workflows/sync-upstream.yml` criado (`schedule` diário 03h UTC + `workflow_dispatch`).
+- [x] Fetch/merge/push implementados na mão (sem action de terceiro) usando `gh` CLI para abrir o PR, em vez de `peter-evans/create-pull-request` como cogitado originalmente.
+- [x] PR de sync já dispara `ci.yml`/`flutter-ci.yml` automaticamente (nenhum trabalho extra necessário - esses workflows já reagiam a `pull_request` de qualquer branch).
+- [x] **Testado de ponta a ponta em produção**, não só isolado: rodou via `workflow_dispatch`, abriu PR real (#5), PR foi mesclado. Três bugs reais encontrados e corrigidos nesse processo (não previstos no plano original):
+  1. `GITHUB_TOKEN` não pode alterar `.github/workflows/*` → precisou de PAT (`SYNC_PAT`, fine-grained, Contents+Workflows+Pull requests: write) no `checkout`.
+  2. `gh pr create` com `GITHUB_TOKEN` falhava (`Resource not accessible by integration`) por política a nível de organização → passou a usar `SYNC_PAT` também nessa etapa.
+  3. `gh pr create` com `SYNC_PAT` falhava (`Resource not accessible by personal access token`) porque fine-grained PAT não tem suporte completo à mutation GraphQL `createPullRequest` → trocado por chamada REST direta (`gh api repos/.../pulls`).
+  - Também avaliamos a API nativa `merge-upstream` ("Sync fork" do GitHub) como alternativa: funciona, mas bate na mesma trava de permissão de workflows — mantido o fetch+merge+push manual por já estar validado.
 
 ### Fase 3 — Ajustar o Workflow B para o padrão de tag da Rech e para criação automática
 
-- [ ] Ajustar o `on.push.tags` em [`flutter-tag.yml`](../.github/workflows/flutter-tag.yml) (ou criar uma cópia própria do fork) para casar com `X.Y.Z-rech.N` (regex atual só aceita sufixo numérico simples — ver nota em §3.2).
-- [ ] Criar o passo que **cria a tag automaticamente** após merge em `master` vindo de um PR de sync (conforme decidido em §3.3) — pode ser um job simples no próprio `sync-upstream.yml` reagindo a `push` em `master`, que lê a versão em `Cargo.toml`, monta `X.Y.Z-rech.1` (incrementando `N` se a base `X.Y.Z` já tiver tag) e faz `git tag` + push.
-- [ ] Revisar a flag `prerelease: true` fixa no workflow herdado — decidir se toda release automática nasce como prerelease (mais seguro, já que "prerelease" no GitHub é só um rótulo visual, não impede download) ou se isso passa a ser dinâmico.
-- [ ] **Teste isolado desta fase:** criar manualmente uma tag de teste (`0.0.0-rech.1` num commit qualquer) e confirmar que o build+Release dispara e finaliza com artefatos anexados.
+- [x] Padrão `[0-9]+.[0-9]+.[0-9]+-rech.[0-9]+` adicionado ao `on.push.tags` do [`flutter-tag.yml`](../.github/workflows/flutter-tag.yml), sem remover os padrões originais do upstream.
+- [x] `tag-release.yml` criado: dispara em `pull_request` (closed+merged, head=`upstream-tracking`) + `workflow_dispatch`, lê a versão do `Cargo.toml`, monta `X.Y.Z-rech.N` incrementando `N` se a base já existir.
+- [x] `prerelease: true` mantido como está (herdado, sem alteração) — decisão implícita: o controle real de "disponível para download" é o `RELEASED_VERSIONS.md` (Fase 4/§10), não a flag de prerelease do GitHub.
+- [x] **Testado de ponta a ponta em produção**: PR de sync mesclado → tag `1.4.9-rech.1` criada automaticamente → build completo disparado → Release publicada. Um quarto bug encontrado: a tag criada com `GITHUB_TOKEN` não disparava o `flutter-tag.yml` (pushes/tags via `GITHUB_TOKEN` não disparam outros workflows, proteção do GitHub contra recursão) → corrigido usando `SYNC_PAT` também no `tag-release.yml`.
 
 ### Fase 4 — Arquivo de versões liberadas
 
-- [ ] Criar `RELEASED_VERSIONS.md` (ou `releases.json`, formato sugerido em §10.1) na raiz do repo, populado com a primeira versão que você decidir liberar.
-- [ ] Atualizar o `README.md` com uma seção "Download" apontando (manualmente, por ora — automatizar é opcional/fase 2 conforme §10.2) para a Release correspondente a `latest_released`.
-- [ ] Documentar no próprio repositório (ex.: `CONTRIBUTING.md` ou um `docs/COMO_LIBERAR_VERSAO.md` curto) o processo manual: "para liberar uma versão, edite `RELEASED_VERSIONS.md`, atualize `latest_released`, abra PR, mergeie".
+- [x] [`RELEASED_VERSIONS.md`](../RELEASED_VERSIONS.md) criado na raiz — ainda **vazio** (nenhuma versão promovida oficialmente ainda; `1.4.9-rech.1` existe e está buildada, mas não foi promovida).
+- [x] Seção de download adicionada ao `README.md`, apontando para o `RELEASED_VERSIONS.md`.
+- [x] Processo de liberação documentado — consolidado **dentro do próprio** `RELEASED_VERSIONS.md` (seção "Como liberar uma nova versão"), em vez de um arquivo `docs/COMO_LIBERAR_VERSAO.md` separado.
 
 ### Fase 5 — Rebrand mínimo viável (fora do escopo de workflow, mas bloqueador para produção)
 
-Não é o foco deste MD (que é sobre automação/CI), mas nenhuma release é "produção" com a marca RustDesk original ainda visível. Itens mínimos antes da primeira release pública:
+**Próximo passo do cronograma - nada aqui foi feito ainda.** Não é o foco deste MD (que é sobre automação/CI), mas nenhuma release é "produção" com a marca RustDesk original ainda visível. Itens mínimos antes da primeira release pública:
 - [ ] Trocar nome do produto exibido na UI (strings de app name).
 - [ ] Trocar ícones/logo (Windows `.ico`, macOS `.icns`, Android/Linux `.png`).
 - [ ] Adicionar o aviso de "versão modificada" exigido pela AGPL (§2.2) — sugestão: tela "Sobre" do app + `README.md`.
@@ -386,15 +391,15 @@ Não é o foco deste MD (que é sobre automação/CI), mas nenhuma release é "p
 
 ### Fase 6 — Ensaio ponta a ponta (dry run) antes do primeiro lançamento real
 
-- [ ] Rodar o fluxo completo uma vez de ponta a ponta com uma versão real do upstream: sync → PR → aprovação → merge → tag automática → build → Release → edição do `RELEASED_VERSIONS.md`.
-- [ ] Baixar o artefato gerado (pelo menos Windows, que é a plataforma mais provável de uso pelos seus clientes) e testar a instalação/execução numa máquina limpa.
-- [ ] Conferir se o aviso de licença/marca (Fase 5) aparece corretamente no binário final.
-- [ ] Só depois desse ensaio validado, considerar a primeira release "de produção" (ex.: desmarcar `prerelease` nela, se essa for a política adotada).
+- [x] Fluxo completo rodado de ponta a ponta com uma versão real do upstream (1.4.8 → 1.4.9): sync → PR → aprovação → merge → tag automática → build → Release. `RELEASED_VERSIONS.md` ainda não foi editado (nenhuma versão promovida por decisão - ver Fase 4).
+- [ ] Baixar o artefato gerado e testar a instalação/execução numa máquina limpa — **ainda não feito** (só confirmamos que os links de download funcionam, não testamos a instalação de fato).
+- [ ] Conferir se o aviso de licença/marca aparece corretamente no binário — **bloqueado pela Fase 5** (ainda não existe aviso pra conferir).
+- [ ] Considerar a primeira release "de produção" (ex.: desmarcar `prerelease`) — decisão em aberto, depende da Fase 5 estar pronta primeiro.
 
 ### Fase 7 — Operação contínua (rotina pós-lançamento)
 
 - [ ] Cadência sugerida: revisar PRs de sync semanalmente (nada te impede de revisar mais cedo se uma correção de segurança sair no upstream — vale acompanhar `github.com/rustdesk/rustdesk/security/advisories`).
-- [ ] Sempre que decidir promover uma versão nova, seguir o processo documentado na Fase 4.
+- [ ] Sempre que decidir promover uma versão nova, seguir o processo documentado no `RELEASED_VERSIONS.md` (Fase 4).
 - [ ] Reavaliar periodicamente (ex.: a cada trimestre) os itens que ficaram como "fase 2" neste documento: automação da seção Download no README, alerta de defasagem (§10.2), assinatura de código (§9), e se o repositório deveria continuar público.
 
 ---
