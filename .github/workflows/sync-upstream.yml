@@ -6,8 +6,15 @@ name: Sync Upstream
 #
 # Contexto/decisões: docs/AUTOMACAO-SYNC-RELEASE.md, seções 3.1 e 11 (Fase 2).
 #
-# Pré-requisito único: a branch `upstream-tracking` já precisa existir no
-# remote `origin` antes da primeira execução (`git push origin upstream-tracking`).
+# Pré-requisitos:
+# 1. A branch `upstream-tracking` já precisa existir no remote `origin` antes
+#    da primeira execução (`git push origin upstream-tracking`).
+# 2. Secret `SYNC_PAT`: um Personal Access Token (fine-grained, escopo só
+#    deste repositório) com permissões "Contents: Read and write" e
+#    "Workflows: Read and write". O GITHUB_TOKEN padrão NÃO consegue empurrar
+#    mudanças em .github/workflows/ (bloqueio fixo do GitHub, não é algo que
+#    dê pra liberar via `permissions:` aqui embaixo) - por isso o PAT.
+#    Ver docs/AUTOMACAO-SYNC-RELEASE.md, seção 11 (Fase 2).
 
 on:
   schedule:
@@ -32,6 +39,10 @@ jobs:
         with:
           ref: ${{ env.TRACKING_BRANCH }}
           fetch-depth: 0
+          # PAT com escopo "workflow" - ver nota de pré-requisitos acima.
+          # persist-credentials (default: true) faz os passos seguintes
+          # (git push) usarem automaticamente este token.
+          token: ${{ secrets.SYNC_PAT }}
 
       - name: Configurar identidade do bot
         run: |
