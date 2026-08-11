@@ -10,10 +10,13 @@ name: Sync Upstream
 # 1. A branch `upstream-tracking` já precisa existir no remote `origin` antes
 #    da primeira execução (`git push origin upstream-tracking`).
 # 2. Secret `SYNC_PAT`: um Personal Access Token (fine-grained, escopo só
-#    deste repositório) com permissões "Contents: Read and write" e
-#    "Workflows: Read and write". O GITHUB_TOKEN padrão NÃO consegue empurrar
-#    mudanças em .github/workflows/ (bloqueio fixo do GitHub, não é algo que
-#    dê pra liberar via `permissions:` aqui embaixo) - por isso o PAT.
+#    deste repositório) com permissões "Contents: Read and write",
+#    "Workflows: Read and write" e "Pull requests: Read and write". Usado
+#    tanto pro push (o GITHUB_TOKEN padrão não pode alterar
+#    .github/workflows/ - bloqueio fixo do GitHub) quanto pra abrir o PR
+#    (evita depender da política "Allow GitHub Actions to create and
+#    approve pull requests", que pode estar restrita a nível de
+#    organização mesmo com o repositório liberado).
 #    Ver docs/AUTOMACAO-SYNC-RELEASE.md, seção 11 (Fase 2).
 
 on:
@@ -79,7 +82,8 @@ jobs:
       - name: Abrir Pull Request para master (se ainda não existir um aberto)
         if: steps.merge.outputs.changed == 'true'
         env:
-          GH_TOKEN: ${{ github.token }}
+          # PAT (não o GITHUB_TOKEN padrão) - ver nota de pré-requisitos acima.
+          GH_TOKEN: ${{ secrets.SYNC_PAT }}
         run: |
           set -e
           existing="$(gh pr list --head "$TRACKING_BRANCH" --base "$TARGET_BRANCH" --state open --json number --jq '.[0].number')"
