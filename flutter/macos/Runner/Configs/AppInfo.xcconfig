@@ -5,10 +5,21 @@
 // 'flutter create' template.
 
 // The application's name. By default this is also the title of the Flutter window.
+// ATENÇÃO: mantido como "RustDesk" de propósito por enquanto - o nome do bundle
+// (RustDesk.app) está hardcoded em ~12 lugares (daemon.plist/agent.plist do
+// serviço privilegiado, update.scpt, res/osx-dist.sh, o passo de create-dmg em
+// .github/workflows/flutter-build.yml...). Trocar aqui sem atualizar todos eles
+// em conjunto quebra o serviço de fundo/atualização no macOS. Fica pendente
+// para uma leva própria, testável de verdade em macOS (ver
+// docs/AUTOMACAO-SYNC-RELEASE.md, Fase 5). O nome exibido dentro do app (telas,
+// título de janela) já vem de `APP_NAME` em runtime (ver src/common.rs).
 PRODUCT_NAME = RustDesk
 
 // The application's bundle identifier
+// Mantido igual ao upstream de propósito (decisão registrada em
+// docs/AUTOMACAO-SYNC-RELEASE.md, Fase 5) - trocar quebraria continuidade de
+// updates/assinatura caso publiquemos em lojas (App Store, etc.) no futuro.
 PRODUCT_BUNDLE_IDENTIFIER = com.carriez.flutterHbb
 
 // The copyright displayed in application information
-PRODUCT_COPYRIGHT = Copyright © 2026 Purslane Tech Pte. Ltd. All rights reserved.
+PRODUCT_COPYRIGHT = Copyright © 2026 Rech Informática Ltda. All rights reserved.

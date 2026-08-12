@@ -2500,21 +2500,23 @@ class _AboutState extends State<_About> {
               SelectionArea(
                   child: Text('${translate('ID')}: $myId')
                       .marginSymmetric(vertical: 4.0)),
+              // Nota: link de "Privacy Statement" removido por ora - este fork
+              // (Rech Rustdesk) ainda não tem política de privacidade própria;
+              // a do rustdesk.com não se aplica a esta distribuição. Repor
+              // quando houver uma política própria (ver docs/AUTOMACAO-SYNC-RELEASE.md, Fase 5).
               InkWell(
                   onTap: () {
-                    launchUrlString('https://rustdesk.com/privacy.html');
-                  },
-                  child: Text(
-                    translate('Privacy Statement'),
-                    style: linkStyle,
-                  ).marginSymmetric(vertical: 4.0)),
-              InkWell(
-                  onTap: () {
-                    launchUrlString('https://rustdesk.com');
+                    launchUrlString(
+                        'https://github.com/RechInformatica/rech-rustdesk');
                   },
                   child: Text(
                     translate('Website'),
                     style: linkStyle,
+                  ).marginSymmetric(vertical: 4.0)),
+              SelectionArea(
+                  child: Text(
+                    'Rech Rustdesk é uma versão modificada do RustDesk (rustdesk.com), distribuída sob os mesmos termos da GNU AGPLv3.',
+                    style: TextStyle(fontSize: 11, color: Colors.grey),
                   ).marginSymmetric(vertical: 4.0)),
               Container(
                 decoration: const BoxDecoration(color: Color(0xFF2c8cff)),

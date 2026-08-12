@@ -1004,6 +1004,24 @@ pub fn get_app_name() -> String {
     hbb_common::config::APP_NAME.read().unwrap().clone()
 }
 
+/// Rebrand: substitui o padrão "RustDesk" (hardcoded em `hbb_common::config::APP_NAME`)
+/// pelo nome deste fork. Precisa rodar bem cedo, antes de qualquer coisa que leia
+/// `APP_NAME` (diretório de config/log, título de janela, etc.) - ver chamadas em
+/// `core_main::core_main()` e `flutter_ffi::initialize()`.
+///
+/// Roda ANTES de `load_custom_client()`/`read_custom_client()`, então um config de
+/// custom-client legítimo (assinado, se algum dia formos usar esse mecanismo pra um
+/// cliente específico) ainda consegue sobrescrever isso depois.
+///
+/// Efeito colateral esperado: `is_custom_client()` passa a retornar sempre `true`
+/// (compara com o literal "RustDesk"), o que desliga a checagem/auto-update padrão
+/// que aponta para a infraestrutura oficial do RustDesk (ver `check_software_update`
+/// e vários pontos em `updater.rs`) - é o comportamento que queremos, já que releases
+/// são geridas pela nossa própria automação (ver docs/AUTOMACAO-SYNC-RELEASE.md).
+pub fn set_default_app_name() {
+    *hbb_common::config::APP_NAME.write().unwrap() = "Rech Rustdesk".to_owned();
+}
+
 #[inline]
 pub fn is_rustdesk() -> bool {
     hbb_common::config::APP_NAME.read().unwrap().eq("RustDesk")
