@@ -13,6 +13,17 @@ pub const CLIPBOARD_NAME: &'static str = "clipboard";
 pub const FILE_CLIPBOARD_NAME: &'static str = "file-clipboard";
 pub const CLIPBOARD_INTERVAL: u64 = 333;
 
+pub const OPTION_ALLOW_SYNC_CLIPBOARD_BETWEEN_SESSIONS: &str =
+    "allow-sync-clipboard-between-sessions";
+
+#[cfg(all(feature = "flutter", not(any(target_os = "android", target_os = "ios"))))]
+pub fn is_sync_clipboard_between_sessions_enabled() -> bool {
+    hbb_common::config::option2bool(
+        OPTION_ALLOW_SYNC_CLIPBOARD_BETWEEN_SESSIONS,
+        &hbb_common::config::LocalConfig::get_option(OPTION_ALLOW_SYNC_CLIPBOARD_BETWEEN_SESSIONS),
+    )
+}
+
 // This format is used to store the flag in the clipboard.
 const RUSTDESK_CLIPBOARD_OWNER_FORMAT: &'static str = "dyn.com.rustdesk.owner";
 
@@ -687,7 +698,7 @@ mod proto {
         let content = if compress {
             compressed
         } else {
-            s.bytes().collect::<Vec<u8>>()
+            d
         };
         Clipboard {
             compress,
@@ -782,6 +793,29 @@ mod proto {
                 msg.set_clipboard(c.clone());
                 msg
             })
+    }
+
+    #[cfg(all(test, not(target_os = "android")))]
+    mod tests {
+        use super::{from_clipboard, special_to_proto};
+        use arboard::ClipboardData;
+
+        #[test]
+        fn preserves_uncompressed_special_clipboard_data() {
+            let data = vec![0x01, 0x02, 0x03];
+            let name = "custom-format".to_owned();
+
+            let clipboard = special_to_proto(data.clone(), name.clone());
+
+            assert!(!clipboard.compress);
+            assert_eq!(clipboard.content.as_ref(), data.as_slice());
+            assert_eq!(clipboard.special_name, name);
+            assert!(matches!(
+                from_clipboard(clipboard),
+                Some(ClipboardData::Special((restored_name, restored_data)))
+                    if restored_name == name && restored_data == data
+            ));
+        }
     }
 }
 
