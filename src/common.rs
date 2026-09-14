@@ -1006,6 +1006,34 @@ pub fn get_app_name() -> String {
     hbb_common::config::APP_NAME.read().unwrap().clone()
 }
 
+/// Build de teste interno (Rech) com servidor ID/Relay fixo, não editável pelo
+/// usuário. Precisa rodar bem cedo (mesmo ponto onde um custom-client config
+/// assinado seria aplicado), antes de qualquer tela ler as opções.
+///
+/// Usa o mesmo mecanismo interno do RustDesk para "opções fixas"
+/// (`OVERWRITE_SETTINGS`): `Config::get_options()`/`get_option()` sempre dão
+/// prioridade a essas chaves sobre o que o usuário tiver salvo, e
+/// `Config::set_option()` recusa silenciosamente qualquer tentativa de mudar
+/// um valor aqui presente (`is_option_can_save`). O diálogo "ID/Relay Server"
+/// (flutter/lib/mobile/widgets/dialog.dart) também usa `is_option_fixed()`
+/// pra desabilitar visualmente os campos correspondentes.
+pub fn set_fixed_server_config() {
+    let mut overwrite = hbb_common::config::OVERWRITE_SETTINGS.write().unwrap();
+    overwrite.insert(
+        "custom-rendezvous-server".to_owned(),
+        "remoto.rech.com.br".to_owned(),
+    );
+    overwrite.insert("relay-server".to_owned(), "remoto.rech.com.br".to_owned());
+    overwrite.insert(
+        "api-server".to_owned(),
+        "https://remoto.rech.com.br".to_owned(),
+    );
+    overwrite.insert(
+        "key".to_owned(),
+        "5cnWVsqVGoLdAA+LORCxJ7iE6SIxFniJN0cStIASCos=".to_owned(),
+    );
+}
+
 #[inline]
 pub fn is_rustdesk() -> bool {
     hbb_common::config::APP_NAME.read().unwrap().eq("RustDesk")

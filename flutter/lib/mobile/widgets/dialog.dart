@@ -86,6 +86,15 @@ void showServerSettingsWithValue(
     apiServerMsg,
   ];
 
+  // Rech: campos com valor fixo nesta build (ver set_fixed_server_config em
+  // src/common.rs) ficam desabilitados aqui, além de já bloqueados no
+  // salvamento do lado Rust (Config::set_option/is_option_can_save).
+  final idFixed = isOptionFixed('custom-rendezvous-server');
+  final relayFixed = isOptionFixed('relay-server');
+  final apiFixed = isOptionFixed('api-server');
+  final keyFixed = isOptionFixed('key');
+  final allFixed = idFixed && relayFixed && apiFixed && keyFixed;
+
   dialogManager.show((setState, close, context) {
     Future<bool> submit() async {
       setState(() {
@@ -107,7 +116,9 @@ void showServerSettingsWithValue(
 
     Widget buildField(
         String label, TextEditingController controller, String errorMsg,
-        {String? Function(String?)? validator, bool autofocus = false}) {
+        {String? Function(String?)? validator,
+        bool autofocus = false,
+        bool enabled = true}) {
       if (isDesktop || isWeb) {
         return Row(
           children: [
@@ -126,6 +137,7 @@ void showServerSettingsWithValue(
                 showLabelText: false,
                 validator: validator,
                 autofocus: autofocus,
+                enabled: enabled,
               ).workaroundFreezeLinuxMint(),
             ),
           ],
@@ -137,6 +149,7 @@ void showServerSettingsWithValue(
         controller: controller,
         errorMsg: errorMsg,
         validator: validator,
+        enabled: enabled,
       ).workaroundFreezeLinuxMint();
     }
 
@@ -153,18 +166,31 @@ void showServerSettingsWithValue(
           child: Obx(() => Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  if (allFixed)
+                    Padding(
+                      padding: EdgeInsets.only(bottom: 8),
+                      child: Text(
+                        'Configuração de servidor fixa nesta build.',
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontStyle: FontStyle.italic,
+                            color: Colors.grey),
+                      ),
+                    ),
                   buildField(translate('ID Server'), idCtrl, idServerMsg.value,
-                      autofocus: true),
+                      autofocus: true, enabled: !idFixed),
                   SizedBox(height: 8),
                   if (!isIOS && !isWeb) ...[
                     buildField(translate('Relay Server'), relayCtrl,
-                        relayServerMsg.value),
+                        relayServerMsg.value,
+                        enabled: !relayFixed),
                     SizedBox(height: 8),
                   ],
                   buildField(
                     translate('API Server'),
                     apiCtrl,
                     apiServerMsg.value,
+                    enabled: !apiFixed,
                     validator: (v) {
                       if (v != null && v.isNotEmpty) {
                         if (!(v.startsWith('http://') ||
@@ -176,7 +202,7 @@ void showServerSettingsWithValue(
                     },
                   ),
                   SizedBox(height: 8),
-                  buildField('Key', keyCtrl, ''),
+                  buildField('Key', keyCtrl, '', enabled: !keyFixed),
                   if (isInProgress)
                     Padding(
                       padding: EdgeInsets.only(top: 8),
@@ -214,10 +240,12 @@ TextFormField serverSettingsTextFormField({
   String? Function(String?)? validator,
   bool autofocus = false,
   bool showLabelText = true,
+  bool enabled = true,
   EdgeInsetsGeometry? contentPadding,
 }) {
   return TextFormField(
     controller: controller,
+    enabled: enabled,
     decoration: InputDecoration(
       labelText: showLabelText ? label : null,
       errorText: errorMsg.isEmpty ? null : errorMsg,
