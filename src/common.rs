@@ -8,6 +8,7 @@ use std::{
 
 use serde_json::{json, Map, Value};
 
+use base::{config::keys, message_proto::*};
 #[cfg(not(target_os = "ios"))]
 use hbb_common::whoami;
 use hbb_common::{
@@ -16,13 +17,10 @@ use hbb_common::{
     async_recursion::async_recursion,
     bail, base64,
     bytes::Bytes,
-    config::{
-        self, keys, use_ws, Config, LocalConfig, CONNECT_TIMEOUT, READ_TIMEOUT, RENDEZVOUS_PORT,
-    },
+    config::{self, use_ws, Config, LocalConfig, CONNECT_TIMEOUT, READ_TIMEOUT, RENDEZVOUS_PORT},
     futures::future::join_all,
     futures_util::future::poll_fn,
     get_version_number, log,
-    message_proto::*,
     protobuf::{Enum, Message as _},
     rendezvous_proto::*,
     socket_client,
@@ -410,6 +408,11 @@ pub fn resample_channels(
     }
 }
 
+#[cfg(all(feature = "use_dasp", feature = "use_samplerate"))]
+compile_error!(
+    "features `use_dasp` and `use_samplerate` are mutually exclusive; disable default features before selecting `use_samplerate`"
+);
+
 #[cfg(feature = "use_dasp")]
 pub fn audio_resample(
     data: &[f32],
@@ -446,7 +449,7 @@ pub fn audio_resample(
     }
 }
 
-#[cfg(feature = "use_samplerate")]
+#[cfg(all(feature = "use_samplerate", not(feature = "use_dasp")))]
 pub fn audio_resample(
     data: &[f32],
     sample_rate0: u32,
