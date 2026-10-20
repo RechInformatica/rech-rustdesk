@@ -65,45 +65,20 @@ jobs:
         id: merge
         run: |
           set -e
-          notes="$RUNNER_TEMP/sync-notes.md"
-          : > "$notes"
-          if [ "$(git rev-parse "origin/$TRACKING_BRANCH^1" 2>/dev/null)" = "$(git rev-parse HEAD)" ] &&
-             [ "$(git rev-parse "origin/$TRACKING_BRANCH^2" 2>/dev/null)" = "$(git rev-parse upstream/master)" ]; then
-            echo "upstream-tracking já é o merge de master com upstream/master."
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
           git checkout -B "$TRACKING_BRANCH"
           before="$(git rev-parse HEAD)"
           if ! git merge --no-edit upstream/master; then
-            # Workflows do fork são curados à mão: em conflito, vale a nossa versão.
-            git diff --name-only --diff-filter=U -- .github/workflows | while read -r f; do
-              {
-                echo "### \`$f\` (mantida a versão do fork; commits do upstream descartados)"
-                git log --oneline HEAD..MERGE_HEAD -- "$f" | sed 's/^/- /'
-                echo
-              } >> "$notes"
-              if git cat-file -e "HEAD:$f" 2>/dev/null; then
-                git checkout --ours -- "$f" && git add -- "$f"
-              else
-                git rm -q -- "$f"
-              fi
+            # Workflow que o fork apagou e o upstream alterou: continua apagado.
+            for f in $(git diff --name-only --diff-filter=U -- .github/workflows); do
+              git cat-file -e "HEAD:$f" 2>/dev/null || git rm -q -- "$f"
             done
             if [ -n "$(git diff --name-only --diff-filter=U)" ]; then
               git diff --name-only --diff-filter=U
               git merge --abort
-              echo "::error::Merge automático de upstream/master falhou por conflito fora de .github/workflows. Resolva manualmente: faça checkout de $TRACKING_BRANCH localmente, rode 'git merge upstream/master', resolva os conflitos e dê push."
+              echo "::error::Conflito no merge de upstream/master. Resolva localmente: git checkout -B $TRACKING_BRANCH origin/$TARGET_BRANCH; git merge upstream/master; resolva; git push --force-with-lease origin $TRACKING_BRANCH."
               exit 1
             fi
             git commit --no-edit
-          fi
-          added="$(git diff --name-only --diff-filter=A "$before" HEAD -- .github/workflows)"
-          if [ -n "$added" ]; then
-            {
-              echo "### Workflows novos do upstream (já ativos após o merge)"
-              echo "$added" | sed 's/^/- `/; s/$/`/'
-              echo
-            } >> "$notes"
           fi
           after="$(git rev-parse HEAD)"
           if [ "$before" = "$after" ]; then
@@ -124,16 +99,9 @@ jobs:
           GH_TOKEN: ${{ secrets.SYNC_PAT }}
         run: |
           set -e
-          body="$RUNNER_TEMP/pr-body.md"
-          {
-            echo "PR automático do workflow \`sync-upstream.yml\`. Traz o que há de novo em [rustdesk/rustdesk](https://github.com/rustdesk/rustdesk) para o fork, via a branch \`$TRACKING_BRANCH\`. Revise os commits antes de aprovar e mesclar - ver \`docs/AUTOMACAO-SYNC-RELEASE.md\` (seção 3.1)."
-            echo
-            cat "$RUNNER_TEMP/sync-notes.md"
-          } > "$body"
           existing="$(gh pr list --head "$TRACKING_BRANCH" --base "$TARGET_BRANCH" --state open --json number --jq '.[0].number')"
           if [ -n "$existing" ]; then
-            gh api -X PATCH "repos/${{ github.repository }}/pulls/$existing" -F body=@"$body"
-            echo "PR #$existing já está aberto - push e descrição atualizados."
+            echo "PR #$existing já está aberto - o push acima já atualizou o conteúdo dele."
             exit 0
           fi
           # `gh pr create` usa a mutation GraphQL createPullRequest, que ainda
@@ -145,4 +113,4 @@ jobs:
             -f title="sync: atualizações do upstream rustdesk/rustdesk" \
             -f head="$TRACKING_BRANCH" \
             -f base="$TARGET_BRANCH" \
-            -F body=@"$body"
+            -f body="PR automático do workflow \`sync-upstream.yml\`. Traz o que há de novo em [rustdesk/rustdesk](https://github.com/rustdesk/rustdesk) para o fork, via a branch \`$TRACKING_BRANCH\`. Revise os commits antes de aprovar e mesclar - ver \`docs/AUTOMACAO-SYNC-RELEASE.md\` (seção 3.1)."
