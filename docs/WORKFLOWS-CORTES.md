@@ -57,9 +57,10 @@ Decisões:
 
 1. **Base do merge:** o job faz checkout do `master`, recria `upstream-tracking` com `git checkout -B` e mescla o upstream por cima. O conflito passa a aparecer no merge do job.
 2. **Conflito em `.github/workflows/`:** vale a versão do fork (`--ours`); se o fork apagou o arquivo, a exclusão é mantida (`git rm`). Conflito fora dessa pasta aborta o job.
-3. **Push com `--force`:** aceitável porque a branch é só de quarentena, e só roda se o merge passou. Em conflito fora dos workflows, o job sai antes do push.
+3. **Push com `--force-with-lease`:** aceitável porque a branch é só de quarentena, e só roda se o merge passou. Em conflito fora dos workflows, o job sai antes do push. Um grupo `concurrency` evita execuções sobrepostas, e o lease faz o push falhar se a branch mudou no meio.
 4. **Rastreio do que foi descartado:** `--ours` descarta as mudanças do upstream naquele arquivo. Os commits descartados (`git log HEAD..MERGE_HEAD -- arquivo`) vão para o corpo do PR.
 5. **Workflows novos do upstream:** entram sem conflito e já ficam ativos. Os arquivos adicionados também são listados no corpo do PR.
 6. **PR já aberto:** a descrição é atualizada a cada execução, para não ficar desatualizada.
+7. **Sem novidade, sem retrabalho:** se `upstream-tracking` já é o merge do `master` atual com o `upstream/master` atual, o job sai sem recriar o merge nem fazer push. Isso evita reexecutar o `flutter-ci.yml` à toa a cada noite.
 
 Risco aceito: no `flutter-build.yml`, um conflito faz o arquivo inteiro ficar com a versão do fork. Se o upstream trocar algo importante junto (ex.: `FLUTTER_VERSION`, `VCPKG_COMMIT_ID`), isso precisa ser aplicado à mão. A lista no corpo do PR existe para isso.

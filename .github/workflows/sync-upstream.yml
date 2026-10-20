@@ -28,6 +28,10 @@ permissions:
   contents: write
   pull-requests: write
 
+concurrency:
+  group: sync-upstream
+  cancel-in-progress: false
+
 env:
   UPSTREAM_URL: https://github.com/rustdesk/rustdesk.git
   TRACKING_BRANCH: upstream-tracking
@@ -63,6 +67,12 @@ jobs:
           set -e
           notes="$RUNNER_TEMP/sync-notes.md"
           : > "$notes"
+          if [ "$(git rev-parse "origin/$TRACKING_BRANCH^1" 2>/dev/null)" = "$(git rev-parse HEAD)" ] &&
+             [ "$(git rev-parse "origin/$TRACKING_BRANCH^2" 2>/dev/null)" = "$(git rev-parse upstream/master)" ]; then
+            echo "upstream-tracking já é o merge de master com upstream/master."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           git checkout -B "$TRACKING_BRANCH"
           before="$(git rev-parse HEAD)"
           if ! git merge --no-edit upstream/master; then
@@ -105,7 +115,7 @@ jobs:
 
       - name: Push da branch upstream-tracking
         if: steps.merge.outputs.changed == 'true'
-        run: git push --force origin "$TRACKING_BRANCH"
+        run: git push --force-with-lease origin "$TRACKING_BRANCH"
 
       - name: Abrir Pull Request para master (se ainda não existir um aberto)
         if: steps.merge.outputs.changed == 'true'
