@@ -13,6 +13,7 @@ Escopo do fork `rech-rustdesk`: distribuir apenas **Windows, Linux e macOS**. Co
 | `bridge.yml` | Gera a ponte Rust/Dart, usada pelo `flutter-build.yml`. |
 | `third-party-RustDeskTempTopMostWindow.yml` | DLL auxiliar do Windows, usada pelo `flutter-build.yml`. |
 | `flutter-ci.yml` | Validação de PRs e pushes no `master`. |
+| `ci.yml` | Único job Linux com testes do workspace (`cargo test`); não é coberto pelo `flutter-ci.yml`. |
 | `clear-cache.yml` | Limpeza manual do cache das Actions; não gasta CI. |
 
 ## 2. Workflows removidos
@@ -23,7 +24,6 @@ Escopo do fork `rech-rustdesk`: distribuir apenas **Windows, Linux e macOS**. Co
 | `flutter-nightly.yml` | Build completo toda noite na tag `nightly`; custo alto e as releases saem pelas tags. |
 | `playground.yml` | Só manual; build de teste antigo do upstream (`VERSION` fixo). |
 | `update-webpki-roots.yml` | Atualização semanal de certificados raiz via PR. O upstream já faz isso e chega pelo sync; no fork geraria PR duplicado mexendo no `Cargo.lock`. |
-| `ci.yml` | Quase toda a matriz comentada e redundante com o `flutter-ci.yml`. |
 
 Apagar é seguro: o sync resolve conflito modify/delete mantendo a exclusão (seção 4).
 
@@ -47,7 +47,7 @@ Ajustes necessários para os jobs restantes não quebrarem:
 
 Mantidos: Windows Flutter (x86_64, aarch64), macOS (x86_64, aarch64), Linux (deb, rpm, Arch), AppImage e flatpak.
 
-Pendências conhecidas: variáveis de ambiente de Android/Sciter no topo do arquivo, a referência a `x86-sciter.exe` no job de metadata assinada e o comentário do `VCPKG_COMMIT_ID`, que ainda manda atualizar o `ci.yml` e o `playground.yml` (apagados). Nada disso foi tocado, para não gerar conflito de sync.
+Pendências conhecidas: variáveis de ambiente de Android/Sciter no topo do arquivo, a referência a `x86-sciter.exe` no job de metadata assinada e o comentário do `VCPKG_COMMIT_ID`, que ainda manda atualizar o `ci.yml` e o `playground.yml` (apagado). Nada disso foi tocado, para não gerar conflito de sync.
 
 ## 4. Mudanças no `sync-upstream.yml`
 
