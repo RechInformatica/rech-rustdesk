@@ -46,7 +46,7 @@ pub fn core_main() -> Option<CoreMainAction> {
     if !crate::common::global_init() {
         return None;
     }
-    crate::common::set_fixed_server_config();
+    crate::rech::set_fixed_server_config();
     crate::load_custom_client();
     #[cfg(windows)]
     if !crate::platform::windows::bootstrap() {
