@@ -7,8 +7,9 @@ Escopo do fork `rech-rustdesk`: distribuir apenas **Windows, Linux e macOS**. Co
 | Arquivo | Função |
 |---|---|
 | `sync-upstream.yml` | Sync noturno do upstream para `upstream-tracking` e PR para `master`. |
-| `tag-release.yml` | Cria a tag `X.Y.Z-rech.N` quando o PR de sync é mesclado. |
+| `tag-release.yml` | Cria a tag `X.Y.Z-rN` quando um PR manual é mesclado (o de sync não gera tag). Ver [VERSIONAMENTO.md](VERSIONAMENTO.md). |
 | `flutter-tag.yml` | Dispara build e Release a partir da tag. |
+| `rech-finaliza-release.yml` | Do fork: ao fim do build da tag, renomeia os arquivos da Release para `rech-rustdesk-X.Y.Z-rN-*` e grava título e notas. |
 | `flutter-build.yml` | Build em si (chamado por `flutter-tag.yml` e `flutter-ci.yml`). |
 | `bridge.yml` | Gera a ponte Rust/Dart, usada pelo `flutter-build.yml`. |
 | `third-party-RustDeskTempTopMostWindow.yml` | DLL auxiliar do Windows, usada pelo `flutter-build.yml`. |

@@ -3,9 +3,10 @@
 Fonte única de verdade sobre quais builds já publicadas (tags/Releases no GitHub)
 são oficialmente recomendadas para download pelos clientes.
 
-Toda versão sincronizada do upstream vira tag e Release automaticamente (ver
-[`docs/AUTOMACAO-SYNC-RELEASE.md`](docs/AUTOMACAO-SYNC-RELEASE.md), seção 3.3) —
-isso, por si só, **não** significa que ela está liberada. Uma versão só é
+Todo PR manual mesclado no `master` vira tag `X.Y.Z-rN` e Release
+automaticamente (ex.: `1.5.1-r42`; o `rN` é um contador global de builds Rech,
+ver [`docs/VERSIONAMENTO.md`](docs/VERSIONAMENTO.md)). Isso, por si só,
+**não** significa que ela está liberada. Uma versão só é
 "oficial" quando aparece na tabela abaixo. É assim que ficamos deliberadamente
 algumas versões atrás do upstream quando fizer sentido (ver seção 10 do
 documento acima).

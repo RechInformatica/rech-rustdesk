@@ -29,7 +29,7 @@ Estas já foram decididas e o restante do documento assume elas como fixas:
 | Item | Decisão |
 |---|---|
 | Nome final do produto/marca | **Rech Rustdesk** |
-| Convenção de tag | **`X.Y.Z-rech.N`** (ex.: `1.4.9-rech.1`), onde `X.Y.Z` é a versão do upstream usada como base e `N` incrementa a cada rebuild/release sua sobre essa mesma base |
+| Convenção de tag | **`X.Y.Z-rN`** (ex.: `1.5.1-r42`), onde `X.Y.Z` é a versão do upstream usada como base e `N` é um contador **global** de builds Rech, que não volta a 1 quando a base muda. Substituiu a `X.Y.Z-rech.N` original (RNS 573139-1). Padrão completo em [VERSIONAMENTO.md](VERSIONAMENTO.md). |
 | Branch de integração | **Sim, branch intermediária** entre o sync do upstream e o `master` do fork (chamada de `upstream-tracking` neste documento — nome definitivo a confirmar) |
 | Plataformas a buildar | **Windows, Linux e macOS apenas** (decisão revisada; antes era a matriz completa). Android, iOS, Web, Sciter e DRM estão desativados com `if: false`. Ver [WORKFLOWS-CORTES.md](WORKFLOWS-CORTES.md). |
 | Mecanismo de "quais versões ficam disponíveis para download" | **Arquivo versionado no repositório** (ex.: `RELEASED_VERSIONS.md` ou `releases.json`), editado manualmente, que lista quais tags/releases já publicadas são consideradas "oficialmente liberadas". Tag e Release no GitHub são criadas normalmente para cada versão sincronizada; a defasagem proposital vem de você simplesmente não adicionar as versões mais novas a esse arquivo até decidir liberar. Detalhado em §10. |
@@ -109,6 +109,8 @@ Duas necessidades distintas, que devem ficar em **dois workflows separados**:
 - **Por que PR e não merge automático:** merges diretos automáticos são arriscados num fork com modificações próprias — conflitos de merge em código (não só em texto) podem quebrar build silenciosamente. Um PR te dá o ponto de controle.
 
 ### 3.2 Definição de versão/tag — decidido: `X.Y.Z-rech.N`
+
+> **Atualizado (RNS 573139-1):** a convenção abaixo foi trocada por `X.Y.Z-rN`, com `N` global, e a tag passou a ser criada no merge de PR **manual** (o sync não gera mais tag). Veja [VERSIONAMENTO.md](VERSIONAMENTO.md). O texto desta seção e da 3.3 fica como registro da decisão original.
 
 O upstream já versiona em `Cargo.toml` (hoje `1.4.8`) e já tem workflow (`flutter-tag.yml`) disparado por tags `v[0-9]+.[0-9]+.[0-9]+`. Convenção adotada: **espelhar a versão do upstream + sufixo `-rech.N`**.
 
