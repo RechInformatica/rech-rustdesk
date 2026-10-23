@@ -1,20 +1,24 @@
 name: Tag Release
 
-# Cria automaticamente uma tag `X.Y.Z-rech.N` (X.Y.Z = versão do upstream em
-# Cargo.toml) sempre que o PR de sync (branch `upstream-tracking`) for
-# mesclado em `master`. N incrementa se já existir tag para a mesma base
-# X.Y.Z (ex.: rebuild por causa de um patch/branding próprio).
+# Cria automaticamente a tag da versão Rech `X.Y.Z-rN` quando um PR manual é
+# mesclado em `master`:
+#   - X.Y.Z = versão do RustDesk de origem (Cargo.toml);
+#   - N     = contador GLOBAL de builds Rech: nunca volta a 1 quando a base
+#             muda (1.5.1-r42, 1.5.1-r43 e, depois do sync da 1.5.2, 1.5.2-r44).
+# Padrão completo: docs/VERSIONAMENTO.md.
 #
-# A tag criada aqui dispara automaticamente o build+Release existente
-# (flutter-tag.yml). Isso NÃO decide quais versões ficam "disponíveis para
-# download" - esse controle é manual, via RELEASED_VERSIONS.md.
+# Não geram tag:
+#   - o PR de sync (branch `upstream-tracking`): as mudanças do upstream entram
+#     na próxima versão Rech;
+#   - PR com a label `sem-release` (documentação, ajuste de workflow, ou para
+#     juntar vários PRs numa versão só).
 #
-# Contexto/decisões: docs/AUTOMACAO-SYNC-RELEASE.md, seções 3.2, 3.3 e 11
-# (Fase 3).
+# workflow_dispatch: tag manual (hotfix fora do `master`, ou fechar uma versão
+# com PRs que entraram com `sem-release`).
 #
-# Também pode ser disparado manualmente (workflow_dispatch) para tagear o
-# estado atual de `master` fora do fluxo de sync (ex.: primeira tag, ou uma
-# tag extra para uma correção de branding).
+# A tag criada aqui dispara o build+Release (flutter-tag.yml). Isso NÃO decide
+# quais versões ficam "disponíveis para download" - esse controle é manual, via
+# RELEASED_VERSIONS.md.
 #
 # Pré-requisito: secret `SYNC_PAT` (mesmo PAT do sync-upstream.yml - ver
 # pré-requisitos lá). Necessário aqui não por causa de arquivos de workflow,
@@ -27,50 +31,89 @@ on:
     types: [closed]
     branches: [master]
   workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch, tag ou commit a tagear"
+        required: false
+        default: master
 
 permissions:
   contents: write
+
+# Um cálculo de N por vez: dois merges seguidos não podem pegar o mesmo número.
+concurrency:
+  group: tag-release
+  cancel-in-progress: false
 
 jobs:
   tag:
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      (github.event.pull_request.merged == true && github.event.pull_request.head.ref == 'upstream-tracking')
+      (github.event.pull_request.merged == true &&
+       github.event.pull_request.head.ref != 'upstream-tracking' &&
+       !contains(github.event.pull_request.labels.*.name, 'sem-release'))
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout master
+      - name: Checkout do commit a tagear
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
-          ref: master
+          # No merge de PR, o commit do próprio merge (o master pode já ter
+          # recebido outro merge quando este job roda).
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.event.pull_request.merge_commit_sha }}
           fetch-depth: 0
           # PAT, não o GITHUB_TOKEN padrão - ver nota de pré-requisitos acima.
           token: ${{ secrets.SYNC_PAT }}
 
-      - name: Determinar próxima tag rech
+      - name: Calcular a próxima versão Rech
         id: next_tag
         run: |
           set -e
+          git fetch --tags --force origin
+
           base_version="$(grep -m1 '^version' Cargo.toml | sed -E 's/version = "([^"]*)".*/\1/')"
-          echo "Versão base (upstream) detectada no Cargo.toml: $base_version"
+          if ! echo "$base_version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Versão do Cargo.toml fora do formato X.Y.Z: '$base_version'"
+            exit 1
+          fi
+          echo "Versão base (RustDesk) no Cargo.toml: $base_version"
 
-          n=1
-          while git rev-parse -q --verify "refs/tags/${base_version}-rech.${n}" >/dev/null; do
-            n=$((n + 1))
-          done
+          # Maior N entre as tags X.Y.Z-rN, de qualquer base. As tags antigas
+          # X.Y.Z-rech.N não entram (exigem dígito logo depois do "r").
+          ultimo="$(git tag -l | { grep -E '^[0-9]+\.[0-9]+\.[0-9]+-r[0-9]+$' || true; } | sed -E 's/.*-r//' | sort -n | tail -1)"
+          n=$(( ${ultimo:-0} + 1 ))
+          tag="${base_version}-r${n}"
 
-          tag="${base_version}-rech.${n}"
-          echo "Próxima tag: $tag"
+          if git rev-parse -q --verify "refs/tags/${tag}" >/dev/null; then
+            echo "::error::A tag $tag já existe."
+            exit 1
+          fi
+
+          echo "Última versão Rech: r${ultimo:-nenhuma}. Próxima tag: $tag"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
       - name: Criar e enviar tag
+        env:
+          TAG: ${{ steps.next_tag.outputs.tag }}
         run: |
           git config user.name "rech-release-bot"
           git config user.email "actions@users.noreply.github.com"
-          git tag -a "${{ steps.next_tag.outputs.tag }}" -m "Rech Rustdesk ${{ steps.next_tag.outputs.tag }}"
-          git push origin "${{ steps.next_tag.outputs.tag }}"
+          git tag -a "$TAG" -m "Rech Rustdesk $TAG"
+          git push origin "$TAG"
 
       - name: Resumo
+        env:
+          TAG: ${{ steps.next_tag.outputs.tag }}
+          PR_NUMERO: ${{ github.event.pull_request.number }}
+          PR_TITULO: ${{ github.event.pull_request.title }}
         run: |
-          echo "### Tag criada: \`${{ steps.next_tag.outputs.tag }}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "O build (flutter-tag.yml) deve iniciar automaticamente. Essa versão ainda **não** fica disponível para download até ser adicionada ao \`RELEASED_VERSIONS.md\` (ver docs/AUTOMACAO-SYNC-RELEASE.md, seção 10)." >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "### Tag criada: \`$TAG\`"
+            echo ""
+            if [ -n "$PR_NUMERO" ]; then
+              echo "Origem: PR #$PR_NUMERO - $PR_TITULO"
+            else
+              echo "Origem: disparo manual (workflow_dispatch)."
+            fi
+            echo ""
+            echo "O build (flutter-tag.yml) deve iniciar automaticamente. Essa versão ainda **não** fica disponível para download até ser adicionada ao \`RELEASED_VERSIONS.md\` (ver docs/VERSIONAMENTO.md)."
+          } >> "$GITHUB_STEP_SUMMARY"
