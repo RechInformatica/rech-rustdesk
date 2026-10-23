@@ -28,6 +28,10 @@ permissions:
   contents: write
   pull-requests: write
 
+concurrency:
+  group: sync-upstream
+  cancel-in-progress: false
+
 env:
   UPSTREAM_URL: https://github.com/rustdesk/rustdesk.git
   TRACKING_BRANCH: upstream-tracking
@@ -37,10 +41,10 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout upstream-tracking
+      - name: Checkout master
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
-          ref: ${{ env.TRACKING_BRANCH }}
+          ref: ${{ env.TARGET_BRANCH }}
           fetch-depth: 0
           # PAT com escopo "workflow" - ver nota de pré-requisitos acima.
           # persist-credentials (default: true) faz os passos seguintes
@@ -57,15 +61,24 @@ jobs:
           git remote add upstream "$UPSTREAM_URL" 2>/dev/null || git remote set-url upstream "$UPSTREAM_URL"
           git fetch upstream --tags --prune
 
-      - name: Mesclar upstream/master em upstream-tracking
+      - name: Mesclar upstream/master sobre master em upstream-tracking
         id: merge
         run: |
           set -e
+          git checkout -B "$TRACKING_BRANCH"
           before="$(git rev-parse HEAD)"
           if ! git merge --no-edit upstream/master; then
-            git merge --abort
-            echo "::error::Merge automático de upstream/master falhou por conflito. Resolva manualmente: faça checkout de $TRACKING_BRANCH localmente, rode 'git merge upstream/master', resolva os conflitos e dê push."
-            exit 1
+            # Workflow que o fork apagou e o upstream alterou: continua apagado.
+            for f in $(git diff --name-only --diff-filter=U -- .github/workflows); do
+              git cat-file -e "HEAD:$f" 2>/dev/null || git rm -q -- "$f"
+            done
+            if [ -n "$(git diff --name-only --diff-filter=U)" ]; then
+              git diff --name-only --diff-filter=U
+              git merge --abort
+              echo "::error::Conflito no merge de upstream/master. Resolva localmente: git checkout -B $TRACKING_BRANCH origin/$TARGET_BRANCH; git merge upstream/master; resolva; git push --force-with-lease origin $TRACKING_BRANCH."
+              exit 1
+            fi
+            git commit --no-edit
           fi
           after="$(git rev-parse HEAD)"
           if [ "$before" = "$after" ]; then
@@ -77,7 +90,7 @@ jobs:
 
       - name: Push da branch upstream-tracking
         if: steps.merge.outputs.changed == 'true'
-        run: git push origin "$TRACKING_BRANCH"
+        run: git push --force-with-lease origin "$TRACKING_BRANCH"
 
       - name: Abrir Pull Request para master (se ainda não existir um aberto)
         if: steps.merge.outputs.changed == 'true'

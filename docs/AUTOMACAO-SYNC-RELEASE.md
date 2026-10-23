@@ -31,7 +31,7 @@ Estas já foram decididas e o restante do documento assume elas como fixas:
 | Nome final do produto/marca | **Rech Rustdesk** |
 | Convenção de tag | **`X.Y.Z-rech.N`** (ex.: `1.4.9-rech.1`), onde `X.Y.Z` é a versão do upstream usada como base e `N` incrementa a cada rebuild/release sua sobre essa mesma base |
 | Branch de integração | **Sim, branch intermediária** entre o sync do upstream e o `master` do fork (chamada de `upstream-tracking` neste documento — nome definitivo a confirmar) |
-| Plataformas a buildar | **Manter a matriz completa** — tudo que o projeto oficial builda hoje (Windows Flutter+Sciter, macOS, iOS, Android, Linux em 4 formatos, Web), sem cortes. Acompanha automaticamente o que o upstream buildar em cada versão sincronizada. |
+| Plataformas a buildar | **Windows, Linux e macOS apenas** (decisão revisada; antes era a matriz completa). Android, iOS, Web, Sciter e DRM estão desativados com `if: false`. Ver [WORKFLOWS-CORTES.md](WORKFLOWS-CORTES.md). |
 | Mecanismo de "quais versões ficam disponíveis para download" | **Arquivo versionado no repositório** (ex.: `RELEASED_VERSIONS.md` ou `releases.json`), editado manualmente, que lista quais tags/releases já publicadas são consideradas "oficialmente liberadas". Tag e Release no GitHub são criadas normalmente para cada versão sincronizada; a defasagem proposital vem de você simplesmente não adicionar as versões mais novas a esse arquivo até decidir liberar. Detalhado em §10. |
 
 Ainda em aberto (retomado na §9): assinatura de código própria.
@@ -102,7 +102,7 @@ Duas necessidades distintas, que devem ficar em **dois workflows separados**:
 - **O que faz:**
   1. Adiciona/usa um remote `upstream` apontando para `https://github.com/rustdesk/rustdesk.git`.
   2. `git fetch upstream --tags`.
-  3. Faz merge (ou rebase, a decidir) do que há de novo em `upstream/master` para a branch intermediária **`upstream-tracking`** — essa branch nunca é tocada manualmente, é só o "espelho + merges automáticos" do upstream.
+  3. Faz merge (ou rebase, a decidir) do que há de novo em `upstream/master` para a branch intermediária **`upstream-tracking`** — essa branch é recriada a partir do `master` a cada execução (ver [WORKFLOWS-CORTES.md](WORKFLOWS-CORTES.md), seção 4); só é editada à mão para resolver conflitos fora de `.github/workflows`.
   4. Abre um **Pull Request automático** de `upstream-tracking` para `master` do fork (não faz merge direto) — assim você revisa conflitos e decide o timing, especialmente porque o fork já tem customizações próprias (ex.: `fix(custom-client)` do histórico) que podem conflitar com mudanças do upstream. A branch intermediária também serve como "zona de quarentena": se um sync vier quebrado, ele fica isolado ali até alguém resolver, sem bloquear outros trabalhos em `master`.
   5. Opcional: roda o `ci.yml`/testes existentes nesse PR antes de você aprovar.
 - **Ferramentas comuns para isso:** ação pronta como `github.com/marketplace/actions/pull-upstream-changes` ou script simples com `git fetch`/`git merge` + `peter-evans/create-pull-request`. Não precisa reinventar — é um padrão bem coberto por actions prontas.
@@ -271,7 +271,7 @@ O `flutter-build.yml` do upstream (herdado pelo fork) builda **14 jobs diferente
 | `build-flatpak` | Linux Flatpak | ✅ Sim |
 | `build-rustdesk-web` | Cliente Web (Flutter Web) | depende do job (não visto publicar release) |
 
-**Decisão (confirmada por você): manter a matriz completa, 1:1 com o que o projeto oficial builda.** Nenhum job é cortado. Isso simplifica a manutenção do fork de outra forma: como a lista de jobs vem diretamente de cima do que o upstream builda a cada versão, o Workflow A (sync) naturalmente já traz qualquer plataforma nova que o upstream adicionar (ou remover) no futuro — não precisa de manutenção manual da matriz aqui.
+**Decisão revisada: apenas Windows, Linux e macOS.** Os demais jobs (Android, iOS, Web, Sciter, DRM) ficam desativados com `if: false`, sem apagar os blocos, para manter o diff pequeno e os conflitos de sync raros. Detalhes em [WORKFLOWS-CORTES.md](WORKFLOWS-CORTES.md). O texto original desta seção (manter a matriz completa) não vale mais.
 
 Efeito prático dessa escolha, já mapeado em §7.3: como o repositório é público, isso **não gera custo** (minutos de runner hospedado são grátis independente de quantos jobs rodam); o único efeito é tempo total de execução do pipeline (mais jobs em paralelo = pipeline mais longa até todos terminarem, mas isso não bloqueia nada porque cada tag dispara sua própria execução independente).
 
