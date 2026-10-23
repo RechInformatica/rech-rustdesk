@@ -86,7 +86,7 @@ jobs:
           GH_TOKEN: ${{ secrets.SYNC_PAT }}
         run: |
           set -e
-          existing="$(gh pr list --head "$TRACKING_BRANCH" --base "$TARGET_BRANCH" --state open --json number --jq '.[0].number')"
+          existing="$(gh api "repos/${{ github.repository }}/pulls?head=${{ github.repository_owner }}:$TRACKING_BRANCH&base=$TARGET_BRANCH&state=open" --jq '.[0].number // empty')"
           if [ -n "$existing" ]; then
             echo "PR #$existing já está aberto - o push acima já atualizou o conteúdo dele."
             exit 0
