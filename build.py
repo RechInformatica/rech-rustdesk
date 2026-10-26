@@ -117,7 +117,7 @@ def make_parser():
         help='Integrate features, windows only.'
              'Available: [Not used for now]. Special value is "ALL" and empty "". Default is empty.')
     parser.add_argument('--flutter', action='store_true',
-                        help='Build flutter package', default=True)
+                        help='Build flutter package', default=False)
     parser.add_argument(
         '--hwcodec',
         action='store_true',
@@ -992,13 +992,9 @@ def build_flutter_windows(version, features, skip_portable_pack):
                   './rustdesk_portable.exe')
     print(
         f'output location: {os.path.abspath(os.curdir)}/rustdesk_portable.exe')
-    os.replace('./rustdesk_portable.exe', f'./rustdesk-{version}-install.exe')
+    os.rename('./rustdesk_portable.exe', f'./rustdesk-{version}-install.exe')
     print(
         f'output location: {os.path.abspath(os.curdir)}/rustdesk-{version}-install.exe')
-    shutil.copy2(f'./rustdesk-{version}-install.exe',
-                 f'./rustdesk-{version}-portable.exe')
-    print(
-        f'output location: {os.path.abspath(os.curdir)}/rustdesk-{version}-portable.exe')
 
 
 def main():
