@@ -1,0 +1,144 @@
+name: Rech - Finaliza Release
+
+# Depois do build de uma tag da versão Rech (`X.Y.Z-rN`, ver
+# docs/VERSIONAMENTO.md), ajusta a Release publicada pelo flutter-build.yml:
+#   - renomeia os arquivos: rustdesk-1.5.1-x86_64.exe passa a
+#     rech-rustdesk-1.5.1-r42-x86_64.exe (muda só o nome do download; o
+#     conteúdo do pacote é o do build);
+#   - título "Rech Rustdesk 1.5.1-r42" e notas com a base do RustDesk, o último
+#     sync do upstream incluído e os PRs desde a versão Rech anterior.
+#
+# Fica num workflow próprio do fork, disparado pelo fim do "Flutter Tag Build",
+# para não mexer no flutter-build.yml / flutter-tag.yml (herdados do upstream,
+# mudam a cada sync).
+#
+# workflow_dispatch: refaz o ajuste de uma tag (ex.: depois de reexecutar um job
+# de build que falhou). É idempotente: arquivo já renomeado é mantido.
+
+on:
+  workflow_run:
+    workflows: ["Flutter Tag Build"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag da versão Rech (ex.: 1.5.1-r42)"
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: rech-finaliza-release-${{ github.event.workflow_run.head_branch || inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  finaliza:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.conclusion != 'cancelled')
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      REPO: ${{ github.repository }}
+      TAG: ${{ github.event.workflow_run.head_branch || inputs.tag }}
+      RESULTADO_BUILD: ${{ github.event.workflow_run.conclusion || 'manual' }}
+      URL_BUILD: ${{ github.event.workflow_run.html_url }}
+    steps:
+      - name: Conferir se é tag da versão Rech
+        id: confere
+        run: |
+          if [[ "$TAG" =~ ^([0-9]+\.[0-9]+\.[0-9]+)-r([0-9]+)$ ]]; then
+            echo "base=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
+            echo "n=${BASH_REMATCH[2]}" >> "$GITHUB_OUTPUT"
+            echo "rech=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "'$TAG' não é tag da versão Rech (X.Y.Z-rN); nada a fazer."
+            echo "rech=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.confere.outputs.rech == 'true'
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ env.TAG }}
+          fetch-depth: 0
+
+      - name: Renomear arquivos da Release
+        if: steps.confere.outputs.rech == 'true'
+        env:
+          BASE: ${{ steps.confere.outputs.base }}
+        run: |
+          set -e
+          release_id="$(gh api "repos/$REPO/releases/tags/$TAG" --jq .id)"
+          gh api --paginate "repos/$REPO/releases/$release_id/assets?per_page=100" \
+            --jq '.[] | "\(.id) \(.name)"' > assets.txt
+
+          while read -r id nome; do
+            case "$nome" in
+              rech-rustdesk*) continue ;;  # já renomeado
+              rustdesk.sbom.json) novo="rech-rustdesk-${TAG}.sbom.json" ;;
+              rustdesk*)
+                if [[ "$nome" == *"$BASE"* ]]; then
+                  novo="rech-${nome/$BASE/$TAG}"
+                else
+                  novo="rech-${nome}"
+                fi
+                ;;
+              *) continue ;;
+            esac
+            if cut -d' ' -f2- assets.txt | grep -qxF "$novo"; then
+              echo "$nome: $novo já existe; removendo o arquivo antigo"
+              gh api -X DELETE "repos/$REPO/releases/assets/$id"
+            else
+              echo "$nome -> $novo"
+              gh api -X PATCH "repos/$REPO/releases/assets/$id" -f name="$novo" > /dev/null
+            fi
+          done < assets.txt
+
+      - name: Título e notas da Release
+        if: steps.confere.outputs.rech == 'true'
+        env:
+          BASE: ${{ steps.confere.outputs.base }}
+          N: ${{ steps.confere.outputs.n }}
+        run: |
+          set -e
+          # Versão Rech anterior: maior N abaixo do atual, de qualquer base.
+          anterior="$(git tag -l | { grep -E '^[0-9]+\.[0-9]+\.[0-9]+-r[0-9]+$' || true; } \
+            | awk -F'-r' -v n="$N" '$2 + 0 < n + 0 { print $2 " " $0 }' | sort -n | tail -1 | cut -d' ' -f2)"
+
+          # Último sync do upstream incluído: 2º pai do último merge da branch
+          # upstream-tracking (o PR de sync é mesclado com merge commit, ver
+          # docs/WORKFLOWS-CORTES.md, seção 4).
+          sync="$(git log --first-parent --merges -1 --format='%P' --grep='upstream-tracking' "$TAG" | awk '{ print $2 }')"
+
+          {
+            echo "**Rech Rustdesk $TAG**: build Rech nº $N sobre o **RustDesk $BASE**."
+            echo ""
+            if [ -n "$sync" ]; then
+              echo "- Último sync do upstream incluído: ${sync:0:10} (branch \`upstream-tracking\`)."
+            fi
+            echo "- Commit do build: $(git rev-parse --short=10 "$TAG")."
+            echo ""
+            if [ -n "$anterior" ]; then
+              echo "### PRs desde $anterior"
+              echo ""
+              # Merge commit de PR: assunto "Merge pull request #N from ..." e corpo = título do PR.
+              mudancas="$(git log --first-parent --merges --format='- %s: %b' "$anterior..$TAG" \
+                | { grep -v 'upstream-tracking' || true; } | { grep -v '^$' || true; } \
+                | sed -E 's/^- Merge pull request (#[0-9]+) from [^:]*: /- \1 /')"
+              echo "${mudancas:-- (sem PRs da Rech; só sync do upstream)}"
+            else
+              echo "Primeira versão no padrão \`X.Y.Z-rN\` (docs/VERSIONAMENTO.md)."
+            fi
+            echo ""
+            if [ "$RESULTADO_BUILD" != "success" ] && [ "$RESULTADO_BUILD" != "manual" ]; then
+              echo "> **Atenção:** o build terminou com \`$RESULTADO_BUILD\`. Algum arquivo pode estar faltando: $URL_BUILD"
+              echo ""
+            fi
+            echo "Esta Release só está **liberada para clientes** se constar no [RELEASED_VERSIONS.md](../../blob/master/RELEASED_VERSIONS.md)."
+          } > notas.md
+
+          cat notas.md
+          gh release edit "$TAG" --repo "$REPO" --title "Rech Rustdesk $TAG" --notes-file notas.md
