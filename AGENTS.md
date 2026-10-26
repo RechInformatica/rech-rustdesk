@@ -230,3 +230,16 @@ Then translate that source into the file's target language (infer the language f
 * New English-text keys use sentence case, not Title Case: `Use ID whitelisting`, **not** `Use ID Whitelisting`. Acronyms (ID, IP, 2FA…) stay uppercase. Legacy Title-Case keys (e.g. `Use IP Whitelisting`) stay as-is — do not rename them.
 * Since the key itself is the English display text, a sentence-case key usually needs **no** `en.rs` entry; add one only when the display text must differ from the key (e.g. `*_tip` keys).
 * Append each new key to `template.rs` (with `""`) and to every `src/lang/*.rs` file (translated, or `""` if unsure; always `""` for `it.rs`), at the end of the list.
+
+## Fork sync (merge-conflict avoidance)
+
+This repository is our fork of upstream RustDesk and is synced from upstream every night. Every edit to an existing upstream line is a potential merge conflict.
+
+* Keep every change as narrowly scoped as possible; touch the fewest existing lines and files.
+* New code goes in new functions, new files or new modules (e.g. a `rech_*` module or file) instead of inline edits to existing functions.
+* In existing upstream files, limit changes to thin hooks: a one-line call, a `mod` declaration, or a new field/match arm appended at the end of a list.
+* Do not reformat, reorder, rename, or move upstream code, and do not reorder imports or list entries.
+* Prefer appending (end of file, end of list, end of `src/lang/*.rs` arrays) over inserting in the middle, so nightly merges apply cleanly.
+* Do not change signatures of existing functions; add a new function or wrapper instead.
+* Do not edit `libs/hbb_common` (submodule) unless unavoidable; put fork-specific code in `libs/base` or the root crate.
+* When a change to existing upstream code is unavoidable, keep it minimal and mention it in the final summary so it can be watched during sync conflicts.
