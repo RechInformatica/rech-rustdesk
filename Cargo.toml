@@ -153,6 +153,7 @@ remote_printer = { path = "libs/remote_printer" }
 impersonate_system = { git = "https://github.com/rustdesk-org/impersonate-system" }
 shared_memory = "0.12"
 tauri-winrt-notification = "0.1"
+portable_layout = { path = "libs/portable_layout" }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc = "0.2"
@@ -221,6 +222,8 @@ exclude = ["vdi/host"]
 # This allows building and running on systems without libxdo installed (e.g., Wayland-only)
 [patch.crates-io]
 libxdo-sys = { path = "libs/libxdo-sys-stub" }
+# Rech portable build: hbb_common's Config::path() reads its folder from here (see libs/directories-next).
+directories-next = { path = "libs/directories-next" }
 # Upstream reserves a frame's whole declared length as soon as its header is in, so a header alone
 # buys an allocation the size it names, bounded only by max_frame_size. This fork grows the read
 # buffer one read_buffer_size chunk at a time as the bytes actually arrive. Patched rather than

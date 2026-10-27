@@ -1,0 +1,21 @@
+# Copy of directories-next 2.0.0 from crates.io, applied to the whole workspace (hbb_common included)
+# by [patch.crates-io] in the root Cargo.toml. Name and version must stay as published, or Cargo ignores
+# the patch. Only src/win.rs differs: the Rech portable build keeps the config beside the executable.
+[package]
+edition = "2018"
+name = "directories-next"
+version = "2.0.0"
+authors = ["The @xdg-rs members"]
+description = "A tiny mid-level library that provides platform-specific standard locations of\ndirectories for config, cache and other data on Linux, Windows and macOS by\nleveraging the mechanisms defined by the XDG base/user directory specifications\non Linux, the Known Folder API on Windows, and the Standard Directory guidelines\non macOS.\n"
+readme = "README.md"
+keywords = ["xdg", "basedir", "app_dirs", "path", "folder"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/xdg-rs/dirs/tree/master/directories"
+publish = false
+
+[dependencies]
+cfg-if = "1.0.0"
+dirs-sys-next = "0.1"
+
+[target.'cfg(windows)'.dependencies]
+portable_layout = { path = "../portable_layout" }

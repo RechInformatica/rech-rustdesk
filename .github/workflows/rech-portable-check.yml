@@ -1,0 +1,54 @@
+name: Rech - Portable check
+
+# O build portable da Rech guarda a configuração ao lado do exe por meio de uma cópia patcheada do
+# directories-next (libs/directories-next, ligada pelo [patch.crates-io] do Cargo.toml raiz). Se o
+# upstream deixar de usar esse crate, o Cargo só avisa que o patch ficou sem uso e o build passa:
+# este workflow transforma isso em erro, inclusive no PR de sync do upstream.
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  patch-em-uso:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          submodules: true
+
+      - name: Patch do directories-next em uso pelo hbb_common
+        run: |
+          set -e
+          if grep -A1 '^\[\[patch.unused\]\]' Cargo.lock | grep -q 'directories-next'; then
+            echo "::error::[patch] do directories-next sem uso no Cargo.lock"
+            exit 1
+          fi
+          cargo tree --locked -i directories-next -e normal --target x86_64-pc-windows-msvc > tree.txt
+          cat tree.txt
+          if ! head -1 tree.txt | grep -q 'libs/directories-next'; then
+            echo "::error::o directories-next resolvido não é a cópia de libs/directories-next"
+            exit 1
+          fi
+          if ! grep -q 'hbb_common' tree.txt; then
+            echo "::error::o hbb_common não depende mais do directories-next"
+            exit 1
+          fi
+
+  layout:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          submodules: true
+
+      - name: Testes do layout e compilação do patch
+        shell: bash
+        run: |
+          cargo test --locked -p portable_layout
+          cargo check --locked -p directories-next

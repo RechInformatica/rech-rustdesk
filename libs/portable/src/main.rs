@@ -9,6 +9,8 @@ use bin_reader::{normalize_path, BinaryReader};
 
 pub mod bin_reader;
 #[cfg(windows)]
+mod portable_dir;
+#[cfg(windows)]
 mod ui;
 
 #[cfg(windows)]
@@ -298,9 +300,13 @@ fn main() -> Result<(), String> {
 
     let mut ui = false;
     let reader = BinaryReader::new()?;
+    #[cfg(windows)]
+    let dir = portable_dir::extract_dir(&reader.exe, click_setup, &args);
+    #[cfg(not(windows))]
+    let dir = None;
     if let Some(exe) = setup(
         reader,
-        None,
+        dir,
         click_setup || args.contains(&"--silent-install".to_owned()),
         &args,
         &mut ui,

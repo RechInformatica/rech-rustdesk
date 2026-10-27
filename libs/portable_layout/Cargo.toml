@@ -1,0 +1,9 @@
+[package]
+name = "portable_layout"
+version = "0.1.0"
+edition = "2021"
+description = "Folder layout of the Rech portable build"
+publish = false
+
+[target.'cfg(windows)'.dependencies]
+winapi = { version = "0.3", features = ["sysinfoapi"] }

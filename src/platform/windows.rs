@@ -102,6 +102,7 @@ mod installer_handoff;
 mod installer_shell;
 mod verified_update;
 mod msi_registry;
+mod portable_migrate;
 pub(crate) use acl::current_process_user_sid_string;
 pub use acl::{
     set_path_permission, set_path_permission_for_portable_service_shmem_dir,
@@ -1820,6 +1821,7 @@ copy /Y \"{tmp_path}\\Uninstall {app_name}.lnk\" \"{path}\\\"
         debug,
         "install",
     )?;
+    portable_migrate::copy_user_config();
     run_after_run_cmds(silent);
     Ok(())
 }
