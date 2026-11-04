@@ -66,7 +66,7 @@ fn close_handle(h: HANDLE) {
 
 fn spawn_session_server(session_id: u32) -> HANDLE {
     log::info!("launching system session server in session {}", session_id);
-    match crate::platform::windows::spawn_session_server_as_system(session_id) {
+    match spawn_session_server_as_system(session_id) {
         Ok(h) => h,
         Err(err) => {
             log::error!("Failed to launch system session server: {}", err);
@@ -74,6 +74,84 @@ fn spawn_session_server(session_id: u32) -> HANDLE {
         }
     }
 }
+
+/// Lança o `--server-session` como SYSTEM na sessão interativa informada.
+fn spawn_session_server_as_system(session_id: DWORD) -> hbb_common::ResultType<HANDLE> {
+    let cmd = format!(
+        "\"{}\" --server-session",
+        std::env::current_exe()?.to_str().unwrap_or("")
+    );
+    crate::platform::windows::launch_privileged_process(session_id, &cmd)
+}
+
+fn enabled_for_elevation() -> bool {
+    crate::rech::use_system_session_server()
+        && crate::rech::is_portable_runtime()
+        && !crate::portable_service::has_portable_service_shmem_arg()
+}
+
+/// run_as_system herda a sessão do winlogon, então a sessão de quem pediu vai por argumento.
+pub fn extend_run_as_system_arg(arg: &mut String) {
+    if enabled_for_elevation() && !crate::platform::windows::is_root() {
+        if let Some(session_arg) = session_arg() {
+            arg.push(' ');
+            arg.push_str(&session_arg);
+        }
+    }
+}
+
+/// Roda o supervisor quando o modo está ligado; false deixa o fluxo original seguir.
+pub fn supervise_from_args() -> bool {
+    if !enabled_for_elevation() {
+        return false;
+    }
+    match session_id_from_args() {
+        Some(session_id) => supervise(session_id),
+        None => log::error!("Missing session id for system session server"),
+    }
+    true
+}
+
+/// Ponto de entrada do processo `--server-session`.
+pub fn run_server_session() {
+    log::info!("start --server-session as system session server");
+    mark_system_session_server();
+    match crate::rech::session_config_path() {
+        Ok(path) => crate::rech::import_and_wipe_session_config(&path),
+        Err(err) => log::error!("Failed to resolve session config path: {}", err),
+    }
+    std::thread::spawn(watch_remote_connections);
+    crate::start_server(true, false);
+}
+
+pub fn override_log_name(log_name: &mut String) {
+    if session_id_from_args().is_some() {
+        *log_name = "server-session".to_owned();
+    }
+}
+
+/// Atende o pedido de elevação do cliente; None deixa o fluxo original seguir.
+pub fn handle_elevation_request() -> Option<String> {
+    if !crate::rech::use_system_session_server()
+        || crate::platform::is_installed()
+        || crate::portable_service::client::running()
+    {
+        return None;
+    }
+    if system_session_server_running() {
+        return Some("No need to elevate".to_owned());
+    }
+    Some(trigger_elevation().err().map_or(String::new(), |e| e.to_string()))
+}
+
+pub fn handle_cm_start_request() {
+    if !system_session_server_running() {
+        if let Err(e) = trigger_elevation() {
+            log::error!("Failed to start system session server from cm: {:?}", e);
+        }
+    }
+}
+
 
 async fn close_session_server_inner() {
     if let Ok(mut conn) = crate::ipc::connect(1000, SYSTEM_IPC_POSTFIX).await {

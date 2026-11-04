@@ -181,9 +181,7 @@ pub fn core_main() -> Option<CoreMainAction> {
         }
     }
     #[cfg(windows)]
-    if crate::rech_session_server::session_id_from_args().is_some() {
-        log_name = "server-session".to_owned();
-    }
+    crate::rech_session_server::override_log_name(&mut log_name);
     hbb_common::init_log(false, &log_name);
 
     // linux uni (url) go here.
@@ -418,16 +416,7 @@ pub fn core_main() -> Option<CoreMainAction> {
             return None;
         } else if args[0] == "--server-session" {
             #[cfg(windows)]
-            {
-                log::info!("start --server-session as system session server");
-                crate::rech_session_server::mark_system_session_server();
-                match crate::rech::session_config_path() {
-                    Ok(path) => crate::rech::import_and_wipe_session_config(&path),
-                    Err(err) => log::error!("Failed to resolve session config path: {}", err),
-                }
-                std::thread::spawn(crate::rech_session_server::watch_remote_connections);
-                crate::start_server(true, false);
-            }
+            crate::rech_session_server::run_server_session();
             return None;
         } else if args[0] == "--import-config" {
             if args.len() == 2 {

@@ -34,6 +34,55 @@ pub fn main_ipc_postfix() -> &'static str {
     }
     ""
 }
+
+/// Motivo de fechamento do StopService: sinaliza handover quando o servidor SYSTEM existe.
+pub fn stop_service_close_reason() -> &'static str {
+    #[cfg(windows)]
+    if crate::rech_session_server::system_session_server_running() {
+        return SYSTEM_HANDOVER_REASON;
+    }
+    ""
+}
+
+/// True quando o motivo foi tratado (tela de reinício exibida) e o chamador deve encerrar.
+pub fn handle_close_reason<T: crate::ui_session_interface::InvokeUiSession>(
+    handler: &crate::ui_session_interface::Session<T>,
+    reason: &str,
+) -> bool {
+    if reason == SYSTEM_HANDOVER_REASON {
+        handler.lc.write().unwrap().mark_restarting_remote_device();
+    }
+    if !handler.is_restarting_remote_device() {
+        return false;
+    }
+    crate::client::Interface::msgbox(
+        handler,
+        "restarting",
+        "Restarting remote device",
+        "Connection in progress. Please wait.",
+        "",
+    );
+    true
+}
+
+/// O servidor SYSTEM assume a sessão e fecha a conexão; o cliente reconecta sozinho.
+pub fn on_elevation_started<T: crate::ui_session_interface::InvokeUiSession>(
+    handler: &crate::ui_session_interface::Session<T>,
+    elevation_requested: bool,
+) {
+    if elevation_requested {
+        handler.lc.write().unwrap().mark_restarting_remote_device();
+    }
+}
+
+pub fn on_portable_service_running<T: crate::ui_session_interface::InvokeUiSession>(
+    handler: &crate::ui_session_interface::Session<T>,
+    running: bool,
+) {
+    if running {
+        handler.lc.write().unwrap().clear_restarting_remote_device();
+    }
+}
 #[cfg(windows)]
 const SESSION_CONFIG_SUBDIR: &str = "rech_session_server";
 

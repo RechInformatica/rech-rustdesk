@@ -844,16 +844,6 @@ pub fn launch_privileged_process(session_id: DWORD, cmd: &str) -> ResultType<HAN
     Ok(h)
 }
 
-/// Lança o `--server-session` como SYSTEM na sessão interativa informada.
-/// Deve ser chamado já rodando como SYSTEM (após `run_as_system`).
-pub fn spawn_session_server_as_system(session_id: DWORD) -> ResultType<HANDLE> {
-    let cmd = format!(
-        "\"{}\" --server-session",
-        std::env::current_exe()?.to_str().unwrap_or("")
-    );
-    launch_privileged_process(session_id, &cmd)
-}
-
 pub fn run_as_user(arg: Vec<&str>) -> ResultType<Option<std::process::Child>> {
     run_exe_in_cur_session(std::env::current_exe()?.to_str().unwrap_or(""), arg, false)
 }
@@ -2510,27 +2500,14 @@ pub fn elevate_or_run_as_system(is_setup: bool, is_elevate: bool, is_run_as_syst
         arg_run_as_system.push(' ');
         arg_run_as_system.push_str(&shmem_arg);
     }
-    let use_session_server = crate::rech::use_system_session_server()
-        && crate::rech::is_portable_runtime()
-        && !crate::portable_service::has_portable_service_shmem_arg();
-    // run_as_system herda a sessão do winlogon, então a sessão de quem pediu vai por argumento.
-    if use_session_server && !is_root() {
-        if let Some(arg) = crate::rech_session_server::session_arg() {
-            arg_run_as_system.push(' ');
-            arg_run_as_system.push_str(&arg);
-        }
+    crate::rech_session_server::extend_run_as_system_arg(&mut arg_run_as_system);
+    if is_root() && is_run_as_system && crate::rech_session_server::supervise_from_args() {
+        return;
     }
     if is_root() {
         if is_run_as_system {
-            if use_session_server {
-                match crate::rech_session_server::session_id_from_args() {
-                    Some(session_id) => crate::rech_session_server::supervise(session_id),
-                    None => log::error!("Missing session id for system session server"),
-                }
-            } else {
-                log::info!("run portable service");
-                crate::portable_service::server::run_portable_service();
-            }
+            log::info!("run portable service");
+            crate::portable_service::server::run_portable_service();
         }
     } else {
         match is_elevated(None) {

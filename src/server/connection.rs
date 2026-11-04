@@ -960,14 +960,14 @@ impl Connection {
                             conn.send(msg_out).await;
                         }
                         #[cfg(windows)]
+                        ipc::Data::DataPortableService(ipc::DataPortableService::RequestStart)
+                            if crate::rech::use_system_session_server() =>
+                        {
+                            crate::rech_session_server::handle_cm_start_request();
+                        }
+                        #[cfg(windows)]
                         ipc::Data::DataPortableService(ipc::DataPortableService::RequestStart) => {
-                            if crate::rech::use_system_session_server() {
-                                if !crate::rech_session_server::system_session_server_running() {
-                                    if let Err(e) = crate::rech_session_server::trigger_elevation() {
-                                        log::error!("Failed to start system session server from cm: {:?}", e);
-                                    }
-                                }
-                            } else if let Err(e) = portable_client::start_portable_service(portable_client::StartPara::Direct) {
+                            if let Err(e) = portable_client::start_portable_service(portable_client::StartPara::Direct) {
                                 log::error!("Failed to start portable service from cm: {:?}", e);
                             }
                         }
@@ -1106,13 +1106,7 @@ impl Connection {
                         Some(message::Union::Misc(m)) => {
                             match &m.union {
                                 Some(misc::Union::StopService(_)) => {
-                                    #[allow(unused_mut)]
-                                    let mut reason = "";
-                                    #[cfg(windows)]
-                                    if crate::rech_session_server::system_session_server_running() {
-                                        reason = crate::rech::SYSTEM_HANDOVER_REASON;
-                                    }
-                                    conn.send_close_reason_no_retry(reason).await;
+                                    conn.send_close_reason_no_retry(crate::rech::stop_service_close_reason()).await;
                                     conn.on_close("stop service", false).await;
                                     break;
                                 }
@@ -4688,18 +4682,12 @@ impl Connection {
             err = "No permission".to_string();
         } else {
             err = "No need to elevate".to_string();
-            if !crate::platform::is_installed() && !portable_client::running() {
-                if crate::rech::use_system_session_server() {
-                    if !crate::rech_session_server::system_session_server_running() {
-                        err = crate::rech_session_server::trigger_elevation()
-                            .err()
-                            .map_or("".to_string(), |e| e.to_string());
-                    }
-                } else {
-                    err = portable_client::start_portable_service(para)
-                        .err()
-                        .map_or("".to_string(), |e| e.to_string());
-                }
+            if let Some(e) = crate::rech_session_server::handle_elevation_request() {
+                err = e;
+            } else if !crate::platform::is_installed() && !portable_client::running() {
+                err = portable_client::start_portable_service(para)
+                    .err()
+                    .map_or("".to_string(), |e| e.to_string());
             }
         }
 

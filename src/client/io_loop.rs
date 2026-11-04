@@ -2163,14 +2163,10 @@ impl<T: InvokeUiSession> Remote<T> {
                     }
                     Some(misc::Union::CloseReason(c)) => {
                         self.sent_close_reason = true; // The controlled end will close, no need to send close reason
-                        if c == crate::rech::SYSTEM_HANDOVER_REASON {
-                            self.handler.lc.write().unwrap().mark_restarting_remote_device();
+                        if crate::rech::handle_close_reason(&self.handler, &c) {
+                            return false;
                         }
-                        if self.handler.is_restarting_remote_device() {
-                            self.handler.msgbox("restarting", "Restarting remote device", "Connection in progress. Please wait.", "");
-                        } else {
-                            self.handler.msgbox("error", "Connection Error", &c, "");
-                        }
+                        self.handler.msgbox("error", "Connection Error", &c, "");
                         return false;
                     }
                     Some(misc::Union::BackNotification(notification)) => {
@@ -2246,10 +2242,7 @@ impl<T: InvokeUiSession> Remote<T> {
                     }
                     Some(misc::Union::ElevationResponse(err)) => {
                         if err.is_empty() {
-                            if self.elevation_requested {
-                                // O servidor SYSTEM assume a sessão e fecha esta conexão; reconecta sozinho.
-                                self.handler.lc.write().unwrap().mark_restarting_remote_device();
-                            }
+                            crate::rech::on_elevation_started(&self.handler, self.elevation_requested);
                             self.handler.msgbox("wait-uac", "", "", "");
                         } else {
                             self.handler.cancel_msgbox("wait-uac");
@@ -2259,9 +2252,7 @@ impl<T: InvokeUiSession> Remote<T> {
                     }
                     Some(misc::Union::PortableServiceRunning(b)) => {
                         self.handler.portable_service_running(b);
-                        if b {
-                            self.handler.lc.write().unwrap().clear_restarting_remote_device();
-                        }
+                        crate::rech::on_portable_service_running(&self.handler, b);
                         if self.elevation_requested && b {
                             self.handler.msgbox(
                                 "custom-nocancel-success",
