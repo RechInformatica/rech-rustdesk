@@ -68,6 +68,8 @@ mod ui_session_interface;
 
 mod hbbs_http;
 mod rech;
+#[cfg(windows)]
+mod rech_session_server;
 
 #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
 pub mod clipboard_file;
