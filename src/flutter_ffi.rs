@@ -1143,6 +1143,11 @@ pub fn main_get_version() -> String {
     get_version()
 }
 
+/// Rech: versão exibida na tela "Sobre" (ver `rech::get_display_version`).
+pub fn main_get_display_version_sync() -> SyncReturn<String> {
+    SyncReturn(crate::rech::get_display_version())
+}
+
 pub fn main_get_fav() -> Vec<String> {
     get_fav()
 }

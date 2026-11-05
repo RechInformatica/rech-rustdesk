@@ -2553,7 +2553,8 @@ class _AboutState extends State<_About> {
   Widget build(BuildContext context) {
     return futureBuilder(future: () async {
       final license = await bind.mainGetLicense();
-      final version = await bind.mainGetVersion();
+      // Rech: versão Rech + base do RustDesk (docs/VERSIONAMENTO.md).
+      final version = bind.mainGetDisplayVersionSync();
       final buildDate = await bind.mainGetBuildDate();
       final fingerprint = await bind.mainGetFingerprint();
       final myId = await bind.mainGetMyId();
