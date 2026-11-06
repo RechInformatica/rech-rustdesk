@@ -126,15 +126,29 @@ fn enabled_for_elevation() -> bool {
         && !crate::portable_service::has_portable_service_shmem_arg()
 }
 
+fn dir_arg() -> Option<String> {
+    let dir = handoff_dir_from_args()?;
+    Some(format!("{}{}", DIR_ARG_PREFIX, hex_encode(&dir.to_string_lossy())))
+}
+
+/// A pasta do handoff vem do processo do usuário; o UAC pode rodar sob outra conta e não a recalcula.
+pub fn extend_elevate_arg(arg: &mut String) {
+    if enabled_for_elevation() && !crate::platform::windows::is_root() {
+        if let Some(dir_arg) = dir_arg() {
+            arg.push(' ');
+            arg.push_str(&dir_arg);
+        }
+    }
+}
+
 /// run_as_system herda a sessão do winlogon, então a sessão de quem pediu vai por argumento.
 pub fn extend_run_as_system_arg(arg: &mut String) {
     if enabled_for_elevation() && !crate::platform::windows::is_root() {
-        if let (Some(session_arg), Ok(dir)) = (session_arg(), crate::rech::session_handoff_dir()) {
+        if let (Some(session_arg), Some(dir_arg)) = (session_arg(), dir_arg()) {
             arg.push(' ');
             arg.push_str(&session_arg);
             arg.push(' ');
-            arg.push_str(DIR_ARG_PREFIX);
-            arg.push_str(&hex_encode(&dir.to_string_lossy()));
+            arg.push_str(&dir_arg);
         }
     }
 }
@@ -192,7 +206,6 @@ pub fn handle_cm_start_request() {
     }
 }
 
-
 /// True quando já existe um `--server-session` SYSTEM rodando.
 pub fn system_session_server_running() -> bool {
     unsafe {
@@ -249,10 +262,12 @@ fn yield_to_system_server() {
 /// config e dispara a cadeia `--portable-service` -> UAC -> SYSTEM -> `supervise`.
 pub fn trigger_elevation() -> hbb_common::ResultType<()> {
     log::info!("[rech] system session server: elevation requested");
-    crate::rech::export_session_config_for_system(&crate::rech::session_handoff_dir()?)?;
+    let dir = crate::rech::session_handoff_dir()?;
+    crate::rech::export_session_config_for_system(&dir)?;
     register_teardown_shutdown_hook();
     let exe = std::env::current_exe()?.to_string_lossy().to_string();
-    match crate::platform::run_background(&exe, "--portable-service") {
+    let arg = format!("--portable-service {}{}", DIR_ARG_PREFIX, hex_encode(&dir.to_string_lossy()));
+    match crate::platform::run_background(&exe, &arg) {
         Ok(true) => {
             log::info!("[rech] system session server: elevation chain started");
             yield_to_system_server();
@@ -277,15 +292,15 @@ pub fn session_id_from_args() -> Option<u32> {
 
 /// Supervisor transitório do servidor SYSTEM do modo portable.
 ///
-/// Roda no processo SYSTEM `--run-as-system`, preso à sessão de quem pediu a elevação,
-/// e encerra tudo quando o servidor sai (desconexão ou saída do portable).
+/// Roda no processo SYSTEM `--run-as-system`, preso à sessão de quem pediu a elevação (`session_id`),
+/// com o handoff em `dir`. Quando o servidor sai, limpa o handoff e a config gravada no perfil do SYSTEM.
 #[tokio::main(flavor = "current_thread")]
 pub async fn supervise(session_id: u32, dir: std::path::PathBuf) {
     log::info!("[rech] system session supervisor started, session {}", session_id);
     let h_process = spawn_session_server(session_id, &dir);
     if h_process.is_null() {
         log::error!("Failed to launch initial system session server");
-        crate::rech::wipe_session_config(&dir, true);
+        cleanup_system_side(&dir);
         return;
     }
     while !server_exited(h_process) {
@@ -293,7 +308,14 @@ pub async fn supervise(session_id: u32, dir: std::path::PathBuf) {
     }
     log::info!("system session server exited");
     close_handle(h_process);
-    crate::rech::wipe_session_config(&dir, true);
+    cleanup_system_side(&dir);
+}
+
+/// Remove o handoff e a config persistida no perfil do SYSTEM.
+fn cleanup_system_side(dir: &std::path::Path) {
+    crate::rech::wipe_session_config(dir, true);
+    let _ = std::fs::remove_file(hbb_common::config::Config::file());
+    let _ = std::fs::remove_file(hbb_common::config::Config2::file());
 }
 
 /// Saída do app portable: limpa o handoff e pede ao servidor SYSTEM que encerre (arquivo de parada).
@@ -351,7 +373,6 @@ pub fn watch_remote_connections(dir: std::path::PathBuf) {
 
 /// Remove o handoff e a config persistida no perfil do SYSTEM antes de sair.
 fn exit_server(dir: &std::path::Path) -> ! {
-    crate::rech::wipe_session_config(dir, true);
-    let _ = std::fs::remove_file(hbb_common::config::Config::file());
+    cleanup_system_side(dir);
     std::process::exit(0);
 }

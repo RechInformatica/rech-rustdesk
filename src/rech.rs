@@ -91,6 +91,7 @@ pub fn on_portable_service_running<T: crate::ui_session_interface::InvokeUiSessi
         handler.lc.write().unwrap().clear_restarting_remote_device();
     }
 }
+
 #[cfg(windows)]
 const SESSION_CONFIG_SUBDIR: &str = "rech_session_server";
 
@@ -129,7 +130,11 @@ pub fn session_handoff_dir() -> hbb_common::ResultType<std::path::PathBuf> {
         .parent()
         .map(|p| p.to_path_buf())
         .ok_or_else(|| hbb_common::anyhow::anyhow!("config dir unavailable"))?;
-    let dir = base.join(SESSION_CONFIG_SUBDIR);
+    let dir = base.join(format!(
+        "{}_{}",
+        SESSION_CONFIG_SUBDIR,
+        crate::platform::windows::get_current_process_session_id().unwrap_or(0)
+    ));
     std::fs::create_dir_all(&dir)?;
     Ok(dir)
 }

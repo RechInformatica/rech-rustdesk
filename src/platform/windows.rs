@@ -2507,6 +2507,7 @@ pub fn elevate_or_run_as_system(is_setup: bool, is_elevate: bool, is_run_as_syst
         arg_run_as_system.push(' ');
         arg_run_as_system.push_str(&shmem_arg);
     }
+    crate::rech_session_server::extend_elevate_arg(&mut arg_elevate);
     crate::rech_session_server::extend_run_as_system_arg(&mut arg_run_as_system);
     if is_root() && is_run_as_system && crate::rech_session_server::supervise_from_args() {
         return;
