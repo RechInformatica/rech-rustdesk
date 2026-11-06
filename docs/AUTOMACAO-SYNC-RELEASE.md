@@ -31,7 +31,7 @@ Estas já foram decididas e o restante do documento assume elas como fixas:
 | Nome final do produto/marca | **Rech Rustdesk** |
 | Convenção de tag | **`X.Y.Z-rN`** (ex.: `1.5.1-r42`), onde `X.Y.Z` é a versão do upstream usada como base e `N` é um contador **global** de builds Rech, que não volta a 1 quando a base muda. Substituiu a `X.Y.Z-rech.N` original (RNS 573139-1). Padrão completo em [VERSIONAMENTO.md](VERSIONAMENTO.md). |
 | Branch de integração | **Sim, branch intermediária** entre o sync do upstream e o `master` do fork (chamada de `upstream-tracking` neste documento — nome definitivo a confirmar) |
-| Plataformas a buildar | **Windows, Linux e macOS apenas** (decisão revisada; antes era a matriz completa). Android, iOS, Web, Sciter e DRM estão desativados com `if: false`. Ver [WORKFLOWS-CORTES.md](WORKFLOWS-CORTES.md). |
+| Plataformas a buildar | **Windows, Linux e macOS apenas**. Windows 32-bit usa Sciter; os builds Flutter cobrem Windows x86_64/aarch64. Android, iOS, Web, Sciter no Linux e DRM continuam desativados com `if: false`. Ver [WORKFLOWS-CORTES.md](WORKFLOWS-CORTES.md). |
 | Mecanismo de "quais versões ficam disponíveis para download" | **Arquivo versionado no repositório** (ex.: `RELEASED_VERSIONS.md` ou `releases.json`), editado manualmente, que lista quais tags/releases já publicadas são consideradas "oficialmente liberadas". Tag e Release no GitHub são criadas normalmente para cada versão sincronizada; a defasagem proposital vem de você simplesmente não adicionar as versões mais novas a esse arquivo até decidir liberar. Detalhado em §10. |
 
 Ainda em aberto (retomado na §9): assinatura de código própria.
