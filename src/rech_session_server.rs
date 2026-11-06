@@ -181,6 +181,9 @@ pub fn run_server_session() {
 pub fn override_log_name(log_name: &mut String) {
     if session_id_from_args().is_some() {
         *log_name = "server-session".to_owned();
+    } else if log_name.starts_with(&DIR_ARG_PREFIX[2..]) {
+        // No `--elevate` só sobra o argumento da pasta, que viraria o nome do log.
+        *log_name = "portable-service".to_owned();
     }
 }
 
