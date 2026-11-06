@@ -1,4 +1,6 @@
-const APP_NAME: &str = "Rech Rustdesk";
+// Identificador técnico (serviço, exe, chaves de registro, esquema de URI): não pode ter espaço.
+const APP_NAME: &str = "RechRustdesk";
+const DISPLAY_NAME: &str = "Rech Rustdesk";
 
 /// Nome do app (build Rech)
 /// Roda antes de `load_custom_client()`, que ainda pode sobrescrever. Deixa `is_custom_client()` true, o que desliga o auto-update oficial.
@@ -50,7 +52,7 @@ fn format_display_version(rech: &str, base: &str) -> String {
     if rech.is_empty() {
         base.to_owned()
     } else {
-        format!("{} {} (RustDesk {})", APP_NAME, rech, base)
+        format!("{} {} (RustDesk {})", DISPLAY_NAME, rech, base)
     }
 }
 

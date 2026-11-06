@@ -385,6 +385,8 @@ Não é o foco deste MD (que é sobre automação/CI), mas nenhuma release é "p
 - [ ] Adicionar o aviso de "versão modificada" exigido pela AGPL (§2.2) — sugestão: tela "Sobre" do app + `README.md`.
 - [ ] Revisar se há URLs/servidores padrão apontando para infraestrutura do RustDesk oficial que deveriam apontar para a sua (ex.: servidor de rendezvous padrão, se aplicável ao seu caso de uso).
 - [ ] Definir se o pipeline de assinatura de código (§9) entra nesta primeira release ou fica para depois — se ficar para depois, deixar isso explícito nas notas de release ("binário não assinado, aviso do SO é esperado").
+- Identificador técnico: `APP_NAME` = `RechRustdesk` (sem espaço; `src/rech.rs`) e bundle macOS `RechRustdesk.app`. "Rech Rustdesk" fica só em textos exibidos.
+- Migração: não há migração. Mudar o `APP_NAME` muda a pasta de config (ID/senha), Program Files, o serviço e a chave de desinstalação, então uma instalação anterior (`RustDesk`) ficaria ao lado da nova. Registrado que ainda não há instalação do fork em campo; se houver, definir a migração antes de liberar.
 
 ### Fase 6 — Ensaio ponta a ponta (dry run) antes do primeiro lançamento real
 

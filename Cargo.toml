@@ -256,7 +256,7 @@ webrtc-util = { git = "https://github.com/rustdesk-org/webrtc", rev = "49c89bd8d
 webrtc-sctp = { git = "https://github.com/rustdesk-org/webrtc", rev = "49c89bd8d30e6e62e4c1a96cee38fdc11f79ef63" }
 
 [package.metadata.winres]
-LegalCopyright = "Copyright © 2026 Rech Informática Ltda. All rights reserved."
+LegalCopyright = "Copyright © Purslane Tech Pte. Ltd.; modificações © 2026 Rech Informática Ltda."
 ProductName = "Rech Rustdesk"
 FileDescription = "Rech Rustdesk Remote Desktop"
 OriginalFilename = "rustdesk.exe"
