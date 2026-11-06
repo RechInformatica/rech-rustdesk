@@ -252,7 +252,7 @@ namespace RemotePrinter
         // `DeletePrinterDriverExW()` may fail with `ERROR_PRINTER_DRIVER_IN_USE`(3001, 0xBB9).
         // We can only ignore this error for now.
         // Though restarting the spooler service is a solution, it's not a good idea to restart the service.
-        // 
+        //
         // Deleting the printer driver after deleting the printer is a common practice.
         // No idea why `DeletePrinterDriverExW()` fails with `ERROR_UNKNOWN_PRINTER_DRIVER` after using the printer once.
         // https://github.com/ChromiumWebApps/chromium/blob/c7361d39be8abd1574e6ce8957c8dbddd4c6ccf7/cloud_print/virtual_driver/win/install/setup.cc#L422

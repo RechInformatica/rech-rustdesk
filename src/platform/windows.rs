@@ -1444,7 +1444,7 @@ fn get_default_install_path() -> String {
             pf = tmp;
         }
     }
-    format!("{}\\{}", pf, crate::get_app_name())
+    format!("{}\\{}", pf, crate::rech::display_name())
 }
 
 pub fn check_update_broker_process() -> ResultType<()> {

@@ -2,6 +2,16 @@
 const APP_NAME: &str = "RechRustdesk";
 const DISPLAY_NAME: &str = "Rech Rustdesk";
 
+/// Nome para pastas visíveis (ex.: Program Files); só vale quando o app é o build Rech.
+#[allow(dead_code)]
+pub fn display_name() -> String {
+    if hbb_common::config::APP_NAME.read().unwrap().as_str() == APP_NAME {
+        DISPLAY_NAME.to_owned()
+    } else {
+        hbb_common::config::APP_NAME.read().unwrap().clone()
+    }
+}
+
 /// Nome do app (build Rech)
 /// Roda antes de `load_custom_client()`, que ainda pode sobrescrever. Deixa `is_custom_client()` true, o que desliga o auto-update oficial.
 pub fn set_default_app_name() {
