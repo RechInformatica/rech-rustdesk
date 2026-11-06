@@ -511,7 +511,8 @@ def update_license_file(app_name):
         license_content = f.read()
     license_content = license_content.replace("website rustdesk.com and other ", "")
     license_content = license_content.replace("RustDesk", app_name)
-    license_content = re.sub(r"Purslane(?: Tech Pte\.)? Ltd", app_name, license_content, flags=re.IGNORECASE)
+    if app_name != "RechRustdesk":
+        license_content = re.sub(r"Purslane(?: Tech Pte\.)? Ltd", app_name, license_content, flags=re.IGNORECASE)
     with open(license_file, "w", encoding="utf-8") as f:
         f.write(license_content)
 
