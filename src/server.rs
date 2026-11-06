@@ -677,16 +677,16 @@ pub async fn start_server(is_server: bool, no_server: bool) {
 
     if is_server {
         #[cfg(windows)]
-        if !crate::is_server() {
+        if !crate::rech::is_server_process() {
             if let Err(err) = start_gui_ipc().await {
                 log::error!("Local hosting unavailable: failed to start GUI IPC listener: {err:#}");
                 return;
             }
         }
         crate::common::set_server_running(true);
-        if !cfg!(windows) || crate::is_server() {
+        if !cfg!(windows) || crate::rech::is_server_process() {
             std::thread::spawn(move || {
-                if let Err(err) = crate::ipc::start("") {
+                if let Err(err) = crate::ipc::start(&crate::rech::main_ipc_postfix()) {
                     log::error!("Failed to start ipc: {}", err);
                     if crate::is_server() {
                         log::error!("ipc is occupied by another process, try kill it");

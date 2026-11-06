@@ -2355,6 +2355,9 @@ impl<T: InvokeUiSession> Remote<T> {
                     }
                     Some(misc::Union::CloseReason(c)) => {
                         self.sent_close_reason = true; // The controlled end will close, no need to send close reason
+                        if crate::rech::handle_close_reason(&self.handler, &c) {
+                            return false;
+                        }
                         self.handler.msgbox("error", "Connection Error", &c, "");
                         return false;
                     }
@@ -2431,6 +2434,7 @@ impl<T: InvokeUiSession> Remote<T> {
                     }
                     Some(misc::Union::ElevationResponse(err)) => {
                         if err.is_empty() {
+                            crate::rech::on_elevation_started(&self.handler, self.elevation_requested);
                             self.handler.msgbox("wait-uac", "", "", "");
                         } else {
                             self.handler.cancel_msgbox("wait-uac");
@@ -2440,6 +2444,7 @@ impl<T: InvokeUiSession> Remote<T> {
                     }
                     Some(misc::Union::PortableServiceRunning(b)) => {
                         self.handler.portable_service_running(b);
+                        crate::rech::on_portable_service_running(&self.handler, b);
                         if self.elevation_requested && b {
                             self.handler.msgbox(
                                 "custom-nocancel-success",
