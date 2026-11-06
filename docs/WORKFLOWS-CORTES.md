@@ -37,18 +37,18 @@ Desativados com `if: false` em vez de apagar os blocos, para manter o diff míni
 | `build-rustdesk-android`, `build-rustdesk-android-universal` | Android fora do escopo. |
 | `build-rustdesk-ios` | iOS fora do escopo. |
 | `build-rustdesk-web` | Web fora do escopo (já estava `if: False` no upstream). |
-| `build-for-windows-sciter`, `build-rustdesk-linux-sciter` | UI Sciter é legada; Windows 32 bits não é necessário. |
+| `build-rustdesk-linux-sciter` | UI Sciter é legada no Linux; o pacote Linux usa Flutter. |
 | `build-rustdesk-linux-drm` | Pacote para Linux sem display server (DRM/KMS); os alvos são desktops comuns. |
 
 Ajustes necessários para os jobs restantes não quebrarem:
 
-- `publish_unsigned`: removidos o `needs` do Sciter, o download do artefato `windows-x86` e o `windows-x86` do `tar`. Job dependente de job desativado é pulado, ou falha por artefato ausente.
-- `publish-signed-update-metadata`: removido o `needs` do Sciter. Esse job só roda em `rustdesk/rustdesk`, então nunca executa no fork.
+- `publish_unsigned`: depende do job Sciter e agrega seu artefato em `windows-x86` no tar unsigned.
+- `publish-signed-update-metadata`: depende do Sciter porque os metadados incluem `x86-sciter.exe`. Esse job só roda em `rustdesk/rustdesk`, então não executa no fork.
 - `build-flatpak`: removidos o `needs` do Linux Sciter e a entrada `-sciter` da matriz.
 
-Mantidos: Windows Flutter (x86_64, aarch64), macOS (x86_64, aarch64), Linux (deb, rpm, Arch), AppImage e flatpak.
+Mantidos: Windows Flutter (x86_64, aarch64) e Sciter (x86), macOS (x86_64, aarch64), Linux (deb, rpm, Arch), AppImage e flatpak.
 
-Pendências conhecidas: variáveis de ambiente de Android/Sciter no topo do arquivo, a referência a `x86-sciter.exe` no job de metadata assinada e o comentário do `VCPKG_COMMIT_ID`, que ainda manda atualizar o `ci.yml` e o `playground.yml` (apagado). Nada disso foi tocado, para não gerar conflito de sync.
+Pendências conhecidas: variáveis de ambiente de Android/Sciter no topo do arquivo e o comentário do `VCPKG_COMMIT_ID`, que ainda manda atualizar o `ci.yml` e o `playground.yml` (apagado). Nada disso foi tocado, para não gerar conflito de sync.
 
 ## 4. Mudanças no `sync-upstream.yml`
 

@@ -5,10 +5,15 @@
 // 'flutter create' template.
 
 // The application's name. By default this is also the title of the Flutter window.
-PRODUCT_NAME = RustDesk
+// Tem de ser igual a `APP_NAME` em src/rech.rs: o macos.rs localiza o bundle
+// (/Applications/<APP_NAME>.app), os plists e o binário por esse nome.
+PRODUCT_NAME = RechRustdesk
 
 // The application's bundle identifier
+// Mantido igual ao upstream de propósito (decisão registrada em
+// docs/AUTOMACAO-SYNC-RELEASE.md, Fase 5) - trocar quebraria continuidade de
+// updates/assinatura caso publiquemos em lojas (App Store, etc.) no futuro.
 PRODUCT_BUNDLE_IDENTIFIER = com.carriez.flutterHbb
 
 // The copyright displayed in application information
-PRODUCT_COPYRIGHT = Copyright © 2026 Purslane Tech Pte. Ltd. All rights reserved.
+PRODUCT_COPYRIGHT = Copyright © Purslane Tech Pte. Ltd.; modificações © 2026 Rech Informática Ltda.
