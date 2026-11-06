@@ -686,7 +686,7 @@ pub async fn start_server(is_server: bool, no_server: bool) {
         crate::common::set_server_running(true);
         if !cfg!(windows) || crate::rech::is_server_process() {
             std::thread::spawn(move || {
-                if let Err(err) = crate::ipc::start(crate::rech::main_ipc_postfix()) {
+                if let Err(err) = crate::ipc::start(&crate::rech::main_ipc_postfix()) {
                     log::error!("Failed to start ipc: {}", err);
                     if crate::is_server() {
                         log::error!("ipc is occupied by another process, try kill it");

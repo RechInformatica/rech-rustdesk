@@ -21,8 +21,12 @@ use winapi::{
 /// behavior of the portable app's own server.
 static IS_SYSTEM_SESSION_SERVER: AtomicBool = AtomicBool::new(false);
 
+fn current_session() -> u32 {
+    crate::platform::windows::get_current_process_session_id().unwrap_or(0)
+}
+
 fn session_mutex_name() -> Vec<u16> {
-    format!("Global\\{}_system_session", crate::get_app_name())
+    format!("Global\\{}_system_session_{}", crate::get_app_name(), current_session())
         .encode_utf16()
         .chain(Some(0))
         .collect()
@@ -42,9 +46,12 @@ pub fn is_system_session_server() -> bool {
 
 const SUPERVISE_INTERVAL_SECS: f32 = 1.0;
 const NO_CONNECTION_TIMEOUT: Duration = Duration::from_secs(300);
+const REMOTE_DROP_GRACE: Duration = Duration::from_secs(30);
 
-/// Pipe próprio do servidor SYSTEM; o ACL padrão de um pipe criado por SYSTEM bloqueia escrita do usuário.
-pub const SYSTEM_IPC_POSTFIX: &str = "_system_session";
+/// Pipe próprio do servidor SYSTEM, por sessão; o ACL padrão de um pipe criado por SYSTEM bloqueia escrita do usuário.
+pub fn system_ipc_postfix() -> String {
+    format!("_system_session_{}", current_session())
+}
 
 fn server_exited(h: HANDLE) -> bool {
     if h.is_null() {
@@ -64,9 +71,9 @@ fn close_handle(h: HANDLE) {
     }
 }
 
-fn spawn_session_server(session_id: u32) -> HANDLE {
+fn spawn_session_server(session_id: u32, dir: &std::path::Path) -> HANDLE {
     log::info!("launching system session server in session {}", session_id);
-    match spawn_session_server_as_system(session_id) {
+    match spawn_session_server_as_system(session_id, dir) {
         Ok(h) => h,
         Err(err) => {
             log::error!("Failed to launch system session server: {}", err);
@@ -76,12 +83,41 @@ fn spawn_session_server(session_id: u32) -> HANDLE {
 }
 
 /// Lança o `--server-session` como SYSTEM na sessão interativa informada.
-fn spawn_session_server_as_system(session_id: DWORD) -> hbb_common::ResultType<HANDLE> {
+fn spawn_session_server_as_system(
+    session_id: DWORD,
+    dir: &std::path::Path,
+) -> hbb_common::ResultType<HANDLE> {
     let cmd = format!(
-        "\"{}\" --server-session",
-        std::env::current_exe()?.to_str().unwrap_or("")
+        "\"{}\" --server-session {}{}",
+        std::env::current_exe()?.to_str().unwrap_or(""),
+        DIR_ARG_PREFIX,
+        hex_encode(&dir.to_string_lossy()),
     );
     crate::platform::windows::launch_privileged_process(session_id, &cmd)
+}
+
+const DIR_ARG_PREFIX: &str = "--server-session-dir=";
+
+fn hex_encode(s: &str) -> String {
+    s.bytes().map(|b| format!("{:02x}", b)).collect()
+}
+
+fn hex_decode(s: &str) -> Option<String> {
+    if s.len() % 2 != 0 {
+        return None;
+    }
+    let bytes: Option<Vec<u8>> = (0..s.len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(s.get(i..i + 2)?, 16).ok())
+        .collect();
+    String::from_utf8(bytes?).ok()
+}
+
+/// Diretório de handoff repassado pela cadeia de elevação.
+fn handoff_dir_from_args() -> Option<std::path::PathBuf> {
+    std::env::args()
+        .find_map(|arg| hex_decode(arg.strip_prefix(DIR_ARG_PREFIX)?))
+        .map(std::path::PathBuf::from)
 }
 
 fn enabled_for_elevation() -> bool {
@@ -93,9 +129,12 @@ fn enabled_for_elevation() -> bool {
 /// run_as_system herda a sessão do winlogon, então a sessão de quem pediu vai por argumento.
 pub fn extend_run_as_system_arg(arg: &mut String) {
     if enabled_for_elevation() && !crate::platform::windows::is_root() {
-        if let Some(session_arg) = session_arg() {
+        if let (Some(session_arg), Ok(dir)) = (session_arg(), crate::rech::session_handoff_dir()) {
             arg.push(' ');
             arg.push_str(&session_arg);
+            arg.push(' ');
+            arg.push_str(DIR_ARG_PREFIX);
+            arg.push_str(&hex_encode(&dir.to_string_lossy()));
         }
     }
 }
@@ -105,9 +144,9 @@ pub fn supervise_from_args() -> bool {
     if !enabled_for_elevation() {
         return false;
     }
-    match session_id_from_args() {
-        Some(session_id) => supervise(session_id),
-        None => log::error!("Missing session id for system session server"),
+    match (session_id_from_args(), handoff_dir_from_args()) {
+        (Some(session_id), Some(dir)) => supervise(session_id, dir),
+        _ => log::error!("Missing session id or handoff dir for system session server"),
     }
     true
 }
@@ -116,11 +155,12 @@ pub fn supervise_from_args() -> bool {
 pub fn run_server_session() {
     log::info!("start --server-session as system session server");
     mark_system_session_server();
-    match crate::rech::session_config_path() {
-        Ok(path) => crate::rech::import_and_wipe_session_config(&path),
-        Err(err) => log::error!("Failed to resolve session config path: {}", err),
-    }
-    std::thread::spawn(watch_remote_connections);
+    let Some(dir) = handoff_dir_from_args() else {
+        log::error!("Missing handoff dir for system session server");
+        return;
+    };
+    crate::rech::import_and_wipe_session_config(&dir);
+    std::thread::spawn(move || watch_remote_connections(dir));
     crate::start_server(true, false);
 }
 
@@ -153,17 +193,6 @@ pub fn handle_cm_start_request() {
 }
 
 
-async fn close_session_server_inner() {
-    if let Ok(mut conn) = crate::ipc::connect(1000, SYSTEM_IPC_POSTFIX).await {
-        let _ = conn.send(&crate::ipc::Data::Close).await;
-    }
-}
-
-#[tokio::main(flavor = "current_thread")]
-async fn close_session_server() {
-    close_session_server_inner().await;
-}
-
 /// True quando já existe um `--server-session` SYSTEM rodando.
 pub fn system_session_server_running() -> bool {
     unsafe {
@@ -177,7 +206,6 @@ pub fn system_session_server_running() -> bool {
 }
 
 const USER_SERVER_STOP_OPTION: &str = "stop-service";
-const SYSTEM_START_TIMEOUT: Duration = Duration::from_secs(120);
 static YIELD_WATCHING: AtomicBool = AtomicBool::new(false);
 
 // Override em memória: não persiste e faz o mediator fechar as conexões atuais ao reiniciar.
@@ -199,7 +227,6 @@ fn yield_to_system_server() {
         return;
     }
     std::thread::spawn(|| {
-        let started = Instant::now();
         let mut yielded = false;
         loop {
             std::thread::sleep(Duration::from_secs(1));
@@ -212,9 +239,6 @@ fn yield_to_system_server() {
                 log::info!("[rech] system session server gone, user server resuming");
                 set_user_server_yielded(false);
                 break;
-            } else if !running && started.elapsed() > SYSTEM_START_TIMEOUT {
-                log::warn!("[rech] system session server did not start in time");
-                break;
             }
         }
         YIELD_WATCHING.store(false, Ordering::SeqCst);
@@ -225,7 +249,7 @@ fn yield_to_system_server() {
 /// config e dispara a cadeia `--portable-service` -> UAC -> SYSTEM -> `supervise`.
 pub fn trigger_elevation() -> hbb_common::ResultType<()> {
     log::info!("[rech] system session server: elevation requested");
-    crate::rech::export_session_config_for_system()?;
+    crate::rech::export_session_config_for_system(&crate::rech::session_handoff_dir()?)?;
     register_teardown_shutdown_hook();
     let exe = std::env::current_exe()?.to_string_lossy().to_string();
     match crate::platform::run_background(&exe, "--portable-service") {
@@ -256,12 +280,12 @@ pub fn session_id_from_args() -> Option<u32> {
 /// Roda no processo SYSTEM `--run-as-system`, preso à sessão de quem pediu a elevação,
 /// e encerra tudo quando o servidor sai (desconexão ou saída do portable).
 #[tokio::main(flavor = "current_thread")]
-pub async fn supervise(session_id: u32) {
+pub async fn supervise(session_id: u32, dir: std::path::PathBuf) {
     log::info!("[rech] system session supervisor started, session {}", session_id);
-    let h_process = spawn_session_server(session_id);
+    let h_process = spawn_session_server(session_id, &dir);
     if h_process.is_null() {
         log::error!("Failed to launch initial system session server");
-        teardown();
+        crate::rech::wipe_session_config(&dir, true);
         return;
     }
     while !server_exited(h_process) {
@@ -269,13 +293,15 @@ pub async fn supervise(session_id: u32) {
     }
     log::info!("system session server exited");
     close_handle(h_process);
-    teardown();
+    crate::rech::wipe_session_config(&dir, true);
 }
 
-/// Encerra o servidor SYSTEM e limpa a config temporária do handoff.
+/// Saída do app portable: limpa o handoff e pede ao servidor SYSTEM que encerre (arquivo de parada).
 pub extern "C" fn teardown() {
-    crate::rech::wipe_session_config();
-    std::thread::spawn(close_session_server);
+    if let Ok(dir) = crate::rech::session_handoff_dir() {
+        crate::rech::wipe_session_config(&dir, false);
+        crate::rech::request_session_server_stop(&dir);
+    }
 }
 
 /// Registra a limpeza de saída do app portable (uma única vez por processo).
@@ -291,11 +317,16 @@ pub fn register_teardown_shutdown_hook() {
 ///
 /// Enquanto não houver conexão, aguarda; se nenhuma chegar dentro de
 /// `NO_CONNECTION_TIMEOUT`, encerra para não deixar um servidor SYSTEM órfão.
-pub fn watch_remote_connections() {
+pub fn watch_remote_connections(dir: std::path::PathBuf) {
     let started = Instant::now();
     let mut saw_remote = false;
+    let mut dropped_since: Option<Instant> = None;
     loop {
         std::thread::sleep(Duration::from_secs(1));
+        if crate::rech::session_server_stop_requested(&dir) {
+            log::info!("stop requested by the portable app, exiting system session server");
+            exit_server(&dir);
+        }
         let remote_count = crate::server::AUTHED_CONNS
             .lock()
             .unwrap()
@@ -304,12 +335,23 @@ pub fn watch_remote_connections() {
             .count();
         if remote_count > 0 {
             saw_remote = true;
+            dropped_since = None;
         } else if saw_remote {
-            log::info!("remote disconnected, exiting system session server");
-            std::process::exit(0);
+            let since = *dropped_since.get_or_insert_with(Instant::now);
+            if since.elapsed() > REMOTE_DROP_GRACE {
+                log::info!("remote disconnected, exiting system session server");
+                exit_server(&dir);
+            }
         } else if started.elapsed() > NO_CONNECTION_TIMEOUT {
             log::info!("no remote connection within timeout, exiting system session server");
-            std::process::exit(0);
+            exit_server(&dir);
         }
     }
+}
+
+/// Remove o handoff e a config persistida no perfil do SYSTEM antes de sair.
+fn exit_server(dir: &std::path::Path) -> ! {
+    crate::rech::wipe_session_config(dir, true);
+    let _ = std::fs::remove_file(hbb_common::config::Config::file());
+    std::process::exit(0);
 }
