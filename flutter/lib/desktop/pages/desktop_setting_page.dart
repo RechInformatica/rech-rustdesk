@@ -1144,6 +1144,13 @@ class _SafetyState extends State<_Safety> with AutomaticKeepAliveClientMixin {
               message: translate("enable-trusted-devices-tip"),
               child: _OptionCheckBox(context, "Enable trusted devices",
                   kOptionEnableTrustedDevices,
+                  optSetter: (key, value) async {
+                try {
+                  await mainSetBoolOption(key, value);
+                } catch (error) {
+                  showToast(error.toString());
+                }
+              },
                   enabled: !locked, update: (v) {
                 setState(() {});
               }),
@@ -1161,7 +1168,21 @@ class _SafetyState extends State<_Safety> with AutomaticKeepAliveClientMixin {
       ).marginOnly(left: 30);
 
       return Column(
-        children: [tfa, bot, trust],
+        children: [
+          tfa,
+          bot,
+          trust,
+          if (mainGetBoolOptionSync(kOptionEnableTrustedDevices))
+            trustedDeviceExpiration(
+              enabled: !locked,
+              onChanged: () {
+                if (mounted) setState(() {});
+              },
+            ).marginOnly(
+              left: _kCheckBoxLeftMargin + 20 + _kContentHSubMargin,
+              top: _kContentHMargin,
+            ),
+        ],
       );
     }
 
@@ -2553,7 +2574,8 @@ class _AboutState extends State<_About> {
   Widget build(BuildContext context) {
     return futureBuilder(future: () async {
       final license = await bind.mainGetLicense();
-      final version = await bind.mainGetVersion();
+      // Rech: versão Rech + base do RustDesk (docs/VERSIONAMENTO.md).
+      final version = bind.mainGetDisplayVersionSync();
       final buildDate = await bind.mainGetBuildDate();
       final fingerprint = await bind.mainGetFingerprint();
       final myId = await bind.mainGetMyId();

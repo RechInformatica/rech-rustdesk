@@ -1,5 +1,4 @@
-/// Servidor ID/Relay fixo (build Rech), aplicado antes de qualquer tela ler as opções.
-/// `OVERWRITE_SETTINGS` tem prioridade sobre o salvo e bloqueia `Config::set_option()`.
+/// Servidor ID/Relay fixo (build Rech)
 pub fn set_fixed_server_config() {
     let mut overwrite = hbb_common::config::OVERWRITE_SETTINGS.write().unwrap();
     overwrite.insert(
@@ -25,6 +24,15 @@ const OPTION_SYSTEM_SESSION_SERVER: &str = "rech-system-session-server";
 
 /// Motivo de fechamento enviado ao cliente quando o servidor SYSTEM assume a sessão.
 pub const SYSTEM_HANDOVER_REASON: &str = "rech-system-handover";
+
+/// Processo que hospeda o servidor: `--server` ou o `--server-session` SYSTEM.
+pub fn is_server_process() -> bool {
+    #[cfg(windows)]
+    if crate::rech_session_server::is_system_session_server() {
+        return true;
+    }
+    crate::is_server()
+}
 
 /// Postfix do IPC principal; o servidor SYSTEM usa um pipe próprio para não colidir com o do usuário.
 pub fn main_ipc_postfix() -> &'static str {
@@ -156,5 +164,66 @@ pub fn wipe_session_config() {
         let cfg2_path = session_config2_path(&path);
         let _ = std::fs::remove_file(path);
         let _ = std::fs::remove_file(cfg2_path);
+    }
+}
+
+/// Versão Rech do build
+/// Vazia em build local, de PR ou feito dentro de container (Linux), onde a variável não chega.
+pub fn get_rech_version() -> String {
+    let tag = option_env!("TAG_NAME").unwrap_or_default();
+    if is_rech_version_tag(tag) {
+        tag.to_owned()
+    } else {
+        String::new()
+    }
+}
+
+/// Texto da versão na tela "Sobre": `Rech Rustdesk 1.5.1-r42 (RustDesk 1.5.1)`
+#[allow(dead_code)]
+pub fn get_display_version() -> String {
+    format_display_version(&get_rech_version(), crate::VERSION)
+}
+
+fn format_display_version(rech: &str, base: &str) -> String {
+    if rech.is_empty() {
+        base.to_owned()
+    } else {
+        format!("Rech Rustdesk {} (RustDesk {})", rech, base)
+    }
+}
+
+fn is_rech_version_tag(tag: &str) -> bool {
+    let Some((base, n)) = tag.rsplit_once("-r") else {
+        return false;
+    };
+    let digits = |s: &str| !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit());
+    let parts: Vec<&str> = base.split('.').collect();
+    parts.len() == 3 && parts.iter().all(|p| digits(p)) && digits(n)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{format_display_version, is_rech_version_tag};
+
+    #[test]
+    fn rech_version_tag() {
+        assert!(is_rech_version_tag("1.5.1-r42"));
+        assert!(is_rech_version_tag("10.0.12-r1"));
+        assert!(!is_rech_version_tag(""));
+        assert!(!is_rech_version_tag("nightly"));
+        assert!(!is_rech_version_tag("1.5.1"));
+        assert!(!is_rech_version_tag("1.5.1-rech.3"));
+        assert!(!is_rech_version_tag("1.5.1-r"));
+        assert!(!is_rech_version_tag("1.5-r4"));
+        assert!(!is_rech_version_tag("v1.5.1-r4"));
+    }
+
+    #[test]
+    fn display_version() {
+        assert_eq!(format_display_version("", "1.5.1"), "1.5.1");
+        assert_eq!(
+            format_display_version("1.5.1-r42", "1.5.1"),
+            "Rech Rustdesk 1.5.1-r42 (RustDesk 1.5.1)"
+        );
     }
 }
