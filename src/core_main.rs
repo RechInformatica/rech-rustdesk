@@ -181,6 +181,8 @@ pub fn core_main() -> Option<CoreMainAction> {
             log_name = name;
         }
     }
+    #[cfg(windows)]
+    crate::rech_session_server::override_log_name(&mut log_name);
     hbb_common::init_log(false, &log_name);
 
     // linux uni (url) go here.
@@ -197,7 +199,11 @@ pub fn core_main() -> Option<CoreMainAction> {
         && !_is_run_as_system
     {
         use crate::portable_service::client;
-        if let Err(e) = client::start_portable_service(client::StartPara::Direct) {
+        if crate::rech::use_system_session_server() {
+            if let Err(e) = crate::rech_session_server::trigger_elevation() {
+                log::error!("Failed to start system session server: {:?}", e);
+            }
+        } else if let Err(e) = client::start_portable_service(client::StartPara::Direct) {
             log::error!("Failed to start portable service: {:?}", e);
         }
     }
@@ -408,6 +414,10 @@ pub fn core_main() -> Option<CoreMainAction> {
                 // prevent server exit when encountering errors from tray
                 hbb_common::allow_err!(handler.join());
             }
+            return None;
+        } else if args[0] == "--server-session" {
+            #[cfg(windows)]
+            crate::rech_session_server::run_server_session();
             return None;
         } else if args[0] == "--import-config" {
             if args.len() == 2 {

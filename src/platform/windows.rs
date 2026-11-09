@@ -2461,6 +2461,10 @@ pub fn elevate(arg: &str) -> ResultType<bool> {
 
 pub fn run_as_system(arg: &str) -> ResultType<()> {
     let exe = std::env::current_exe()?.to_string_lossy().to_string();
+    // O cwd herdado pode ser unidade mapeada/rede que o token SYSTEM não enxerga (erro 267).
+    if let Ok(root) = std::env::var("SystemRoot") {
+        let _ = std::env::set_current_dir(root);
+    }
     if impersonate_system::run_as_system(&exe, arg).is_err() {
         bail!(format!("Failed to run {} as system", exe));
     }
@@ -2502,6 +2506,11 @@ pub fn elevate_or_run_as_system(is_setup: bool, is_elevate: bool, is_run_as_syst
         arg_elevate.push_str(&shmem_arg);
         arg_run_as_system.push(' ');
         arg_run_as_system.push_str(&shmem_arg);
+    }
+    crate::rech_session_server::extend_elevate_arg(&mut arg_elevate);
+    crate::rech_session_server::extend_run_as_system_arg(&mut arg_run_as_system);
+    if is_root() && is_run_as_system && crate::rech_session_server::supervise_from_args() {
+        return;
     }
     if is_root() {
         if is_run_as_system {
