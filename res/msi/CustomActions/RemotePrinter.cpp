@@ -24,7 +24,7 @@ namespace RemotePrinter
     // app name, and that arrives at runtime so one dll serves every custom client.
     LPCWCH RD_DRIVER_INF_PATH = L"drivers\\RustDeskPrinterDriver\\RustDeskPrinterDriver.inf";
     LPCWCH RD_PRINTER_DRIVER_NAME = L"RustDesk v4 Printer Driver";
-    LPCWCH RD_DEFAULT_APP_NAME = L"RustDesk";
+    LPCWCH RD_DEFAULT_APP_NAME = L"RechRustdesk";
     LPCWCH XCV_MONITOR_LOCAL_PORT = L",XcvMonitor Local Port";
 
     static std::wstring printerNameOf(const std::wstring &appName)
@@ -252,7 +252,7 @@ namespace RemotePrinter
         // `DeletePrinterDriverExW()` may fail with `ERROR_PRINTER_DRIVER_IN_USE`(3001, 0xBB9).
         // We can only ignore this error for now.
         // Though restarting the spooler service is a solution, it's not a good idea to restart the service.
-        // 
+        //
         // Deleting the printer driver after deleting the printer is a common practice.
         // No idea why `DeletePrinterDriverExW()` fails with `ERROR_UNKNOWN_PRINTER_DRIVER` after using the printer once.
         // https://github.com/ChromiumWebApps/chromium/blob/c7361d39be8abd1574e6ce8957c8dbddd4c6ccf7/cloud_print/virtual_driver/win/install/setup.cc#L422

@@ -81,7 +81,7 @@ def make_parser():
         help='Connection type, e.g. "incoming", "outgoing". Default is empty, means incoming-outgoing',
     )
     parser.add_argument(
-        "--app-name", type=str, default="RustDesk", help="The app name."
+        "--app-name", type=str, default="RechRustdesk", help="The app name."
     )
     parser.add_argument(
         "-v", "--version", type=str, default="", help="The app version."
@@ -93,7 +93,7 @@ def make_parser():
         "-m",
         "--manufacturer",
         type=str,
-        default="Purslane Tech Pte. Ltd.",
+        default="Rech Informática Ltda",
         help="The app manufacturer.",
     )
     return parser
@@ -241,6 +241,11 @@ def put_app_exe_on_media2():
     return True
 
 
+def install_dir_name(app_name):
+    # Mantém em sincronia com rech::display_name() em src/rech.rs.
+    return "Rech Rustdesk" if app_name == "RechRustdesk" else app_name
+
+
 def gen_pre_vars(args, dist_dir):
     def func(lines, index_start):
         upgrade_code = uuid.uuid5(uuid.NAMESPACE_OID, app_name + ".exe")
@@ -250,6 +255,7 @@ def gen_pre_vars(args, dist_dir):
             f'{indent}<?define Version="{g_version}" ?>\n',
             f'{indent}<?define Manufacturer="{args.manufacturer}" ?>\n',
             f'{indent}<?define Product="{args.app_name}" ?>\n',
+            f'{indent}<?define ProductDir="{install_dir_name(args.app_name)}" ?>\n',
             f'{indent}<?define Description="{args.app_name} Installer" ?>\n',
             f'{indent}<?define ProductLower="{args.app_name.lower()}" ?>\n',
             f'{indent}<?define RegKeyRoot=".$(var.ProductLower)" ?>\n',
@@ -485,7 +491,7 @@ def init_global_vars(dist_dir, app_name, args):
     if g_version.count(".") == 2:
         # https://github.com/dotnet/runtime/blob/5535e31a712343a63f5d7d796cd874e563e5ac14/src/libraries/System.Private.CoreLib/src/System/Version.cs
         if args.revision_version < 0 or args.revision_version > 2147483647:
-            raise ValueError(f"Invalid revision version: {args.revision_version}")    
+            raise ValueError(f"Invalid revision version: {args.revision_version}")
         g_version = f"{g_version}.{args.revision_version}"
 
     g_build_date = read_process_output("--build-date")
@@ -505,7 +511,8 @@ def update_license_file(app_name):
         license_content = f.read()
     license_content = license_content.replace("website rustdesk.com and other ", "")
     license_content = license_content.replace("RustDesk", app_name)
-    license_content = re.sub(r"Purslane(?: Tech Pte\.)? Ltd", app_name, license_content, flags=re.IGNORECASE)
+    if app_name != "RechRustdesk":
+        license_content = re.sub(r"Purslane(?: Tech Pte\.)? Ltd", app_name, license_content, flags=re.IGNORECASE)
     with open(license_file, "w", encoding="utf-8") as f:
         f.write(license_content)
 

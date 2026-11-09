@@ -1,3 +1,23 @@
+// Identificador técnico (serviço, exe, chaves de registro, esquema de URI): não pode ter espaço.
+const APP_NAME: &str = "RechRustdesk";
+const DISPLAY_NAME: &str = "Rech Rustdesk";
+
+/// Nome para pastas visíveis (ex.: Program Files); só vale quando o app é o build Rech.
+#[allow(dead_code)]
+pub fn display_name() -> String {
+    if hbb_common::config::APP_NAME.read().unwrap().as_str() == APP_NAME {
+        DISPLAY_NAME.to_owned()
+    } else {
+        hbb_common::config::APP_NAME.read().unwrap().clone()
+    }
+}
+
+/// Nome do app (build Rech)
+/// Roda antes de `load_custom_client()`, que ainda pode sobrescrever. Deixa `is_custom_client()` true, o que desliga o auto-update oficial.
+pub fn set_default_app_name() {
+    *hbb_common::config::APP_NAME.write().unwrap() = APP_NAME.to_owned();
+}
+
 /// Servidor ID/Relay fixo (build Rech)
 pub fn set_fixed_server_config() {
     let mut overwrite = hbb_common::config::OVERWRITE_SETTINGS.write().unwrap();
@@ -230,7 +250,7 @@ fn format_display_version(rech: &str, base: &str) -> String {
     if rech.is_empty() {
         base.to_owned()
     } else {
-        format!("Rech Rustdesk {} (RustDesk {})", rech, base)
+        format!("{} {} (RustDesk {})", DISPLAY_NAME, rech, base)
     }
 }
 

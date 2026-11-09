@@ -137,7 +137,6 @@ jobs:
               echo "> **Atenção:** o build terminou com \`$RESULTADO_BUILD\`. Algum arquivo pode estar faltando: $URL_BUILD"
               echo ""
             fi
-            echo "Esta Release só está **liberada para clientes** se constar no [RELEASED_VERSIONS.md](../../blob/master/RELEASED_VERSIONS.md)."
           } > notas.md
 
           cat notas.md
